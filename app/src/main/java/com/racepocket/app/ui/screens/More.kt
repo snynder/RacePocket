@@ -158,6 +158,9 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         edit({ it[Keys.notifEnabled] = granted }, true)
     }
+    val resultsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        edit({ it[Keys.resultsEnabled] = granted }, true)
+    }
     var transcripts by remember { mutableStateOf(s.transcriptsUrl) }
     var whisper by remember { mutableStateOf(s.whisperKey) }
 
@@ -226,6 +229,20 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
                             edit({ it[Keys.lead] = m }, true)
                         }
                     }
+                }
+            }
+        }
+
+        item { Muted(stringResource(R.string.results_notif_title).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                ToggleRow(stringResource(R.string.results_notif_enable), stringResource(R.string.results_notif_enable_sub), s.resultsEnabled) { on ->
+                    if (on && Build.VERSION.SDK_INT >= 33) resultsPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    else edit({ it[Keys.resultsEnabled] = on }, true)
+                }
+                if (s.resultsEnabled) {
+                    Divider()
+                    SessionLevels(s.results, Keys::results) { b -> edit(b, true) }
                 }
             }
         }

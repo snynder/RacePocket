@@ -21,6 +21,8 @@ data class AppSettings(
     val notif: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { it == SessionKind.QUALI || it == SessionKind.RACE || it == SessionKind.SPRINT || it == SessionKind.SPRINT_QUALI },
     val leadMinutes: Int = 15,
     val banner: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { true },
+    val resultsEnabled: Boolean = false,
+    val results: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { it == SessionKind.QUALI || it == SessionKind.RACE || it == SessionKind.SPRINT || it == SessionKind.SPRINT_QUALI },
     val countdownEnabled: Boolean = true,
     val countdown: Map<SessionKind, Boolean> = SessionKind.entries.associateWith { true },
     val transcriptsUrl: String = "",
@@ -42,6 +44,8 @@ object Keys {
     val updateRepo = stringPreferencesKey("update_repo")
     fun notif(k: SessionKind) = booleanPreferencesKey("notif_" + k.name)
     fun banner(k: SessionKind) = booleanPreferencesKey("banner_" + k.name)
+    val resultsEnabled = booleanPreferencesKey("results_enabled")
+    fun results(k: SessionKind) = booleanPreferencesKey("results_" + k.name)
     val countdownEnabled = booleanPreferencesKey("countdown_enabled")
     fun countdown(k: SessionKind) = booleanPreferencesKey("countdown_" + k.name)
 }
@@ -58,6 +62,8 @@ class SettingsRepo(private val context: Context) {
             notif = SessionKind.entries.associateWith { p[Keys.notif(it)] ?: d.notif.getValue(it) },
             leadMinutes = p[Keys.lead] ?: d.leadMinutes,
             banner = SessionKind.entries.associateWith { p[Keys.banner(it)] ?: true },
+            resultsEnabled = p[Keys.resultsEnabled] ?: d.resultsEnabled,
+            results = SessionKind.entries.associateWith { p[Keys.results(it)] ?: d.results.getValue(it) },
             countdownEnabled = p[Keys.countdownEnabled] ?: d.countdownEnabled,
             countdown = SessionKind.entries.associateWith { p[Keys.countdown(it)] ?: d.countdown.getValue(it) },
             transcriptsUrl = p[Keys.transcripts] ?: d.transcriptsUrl,

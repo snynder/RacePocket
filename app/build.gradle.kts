@@ -5,6 +5,8 @@ plugins {
 }
 
 val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+// The version people see (2.0, 2.1…) lives in version.txt; versionCode stays the build number so Android installs over it.
+val appVersion = rootProject.file("version.txt").readText().trim()
 
 android {
     namespace = "com.racepocket.app"
@@ -15,7 +17,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = runNumber
-        versionName = "1.0.$runNumber"
+        versionName = appVersion
         // "owner/repo" of the GitHub repository that builds the app, used by the in-app updater
         buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: ""}\"")
     }

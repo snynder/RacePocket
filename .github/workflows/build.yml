@@ -36,6 +36,16 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/racepocket.jks"
 
+      # The version comes from version.txt (2.0, 2.1…). Stop if that release already exists: bump version.txt first.
+      - name: Read version
+        run: |
+          VERSION=$(tr -d '[:space:]' < version.txt)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "::error::A versão $VERSION já foi publicada. Suba o número em version.txt."
+            exit 1
+          fi
+
       - name: Build
         env:
           KEYSTORE_FILE: ${{ runner.temp }}/racepocket.jks
@@ -50,19 +60,19 @@ jobs:
 
       - name: Rename APK
         run: |
-          cp app/build/outputs/apk/release/app-release.apk RacePocket-${{ github.run_number }}.apk
+          cp app/build/outputs/apk/release/app-release.apk RacePocket-${{ env.VERSION }}.apk
           cp app/build/outputs/apk/release/app-release.apk RacePocket.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: RacePocket-${{ github.run_number }}
-          path: RacePocket-${{ github.run_number }}.apk
+          name: RacePocket-${{ env.VERSION }}
+          path: RacePocket-${{ env.VERSION }}.apk
 
       # The app checks this release to update itself.
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: RacePocket ${{ github.run_number }}
+          tag_name: v${{ env.VERSION }}
+          name: RacePocket ${{ env.VERSION }}
           body: ${{ github.event.head_commit.message }}
           files: RacePocket.apk

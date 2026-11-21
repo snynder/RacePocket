@@ -18,11 +18,11 @@ import java.io.File
 
 /**
  * Updates from the GitHub repository that builds the app: every build publishes a Release
- * ("v<build number>") with the APK. The app compares that number with its own and installs the new APK.
+ * ("v<version>", e.g. v2.1, from version.txt) with the APK. The app compares that version with its own and installs the new APK.
  * The repository must be public (the GitHub API does not show releases of private repositories without a token).
  */
 object Updater {
-    data class Release(val version: Int, val apkUrl: String, val notes: String)
+    data class Release(val version: String, val apkUrl: String, val notes: String)
 
     sealed interface State {
         data object Idle : State
@@ -35,7 +35,25 @@ object Updater {
     }
 
     val state = MutableStateFlow<State>(State.Idle)
-    val currentVersion: Int get() = BuildConfig.VERSION_CODE
+    val currentVersion: String get() = BuildConfig.VERSION_NAME
+
+    /** "v2.1" -> [2, 1]; null when the tag is not a version. */
+    private fun parts(v: String): List<Int>? {
+        val t = v.trim().removePrefix("v")
+        if (!Regex("""\d+(\.\d+)*""").matches(t)) return null
+        return t.split('.').map { it.toInt() }
+    }
+
+    /** True when version a is newer than b (2.10 > 2.9 > 2.1 > 2.0). */
+    fun isNewer(a: String, b: String): Boolean {
+        val x = parts(a) ?: return false
+        val y = parts(b) ?: return true
+        for (i in 0 until maxOf(x.size, y.size)) {
+            val c = (x.getOrElse(i) { 0 }).compareTo(y.getOrElse(i) { 0 })
+            if (c != 0) return c > 0
+        }
+        return false
+    }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     fun repo(settings: AppSettings): String = settings.updateRepo.trim().ifEmpty { BuildConfig.UPDATE_REPO }
@@ -54,7 +72,7 @@ object Updater {
             state.value = try {
                 val r = latest(repo)
                 when {
-                    r != null && r.version > currentVersion -> State.Available(r)
+                    r != null && isNewer(r.version, currentVersion) -> State.Available(r)
                     silent -> State.Idle
                     else -> State.UpToDate
                 }
@@ -79,7 +97,7 @@ object Updater {
                 noCache.newCall(Request.Builder().url("https://github.com/$repo/releases/latest").header("User-Agent", Http.UA).build()).execute().use { r ->
                     val loc = r.header("Location") ?: return@use null
                     val tag = loc.substringAfterLast("/tag/", "")
-                    val v = tag.filter { it.isDigit() }.toIntOrNull() ?: return@use null
+                    val v = tag.removePrefix("v").takeIf { parts(it) != null } ?: return@use null
                     Release(v, "https://github.com/$repo/releases/download/$tag/RacePocket.apk", "")
                 }
             }
@@ -97,7 +115,7 @@ object Updater {
         }
         val j = Http.json.parseToJsonElement(text)
         val tag = j.child("tag_name").str() ?: return null
-        val version = tag.filter { it.isDigit() }.toIntOrNull() ?: return null
+        val version = tag.removePrefix("v").takeIf { parts(it) != null } ?: return null
         val apk = j.child("assets").arr().firstOrNull { it.child("name").str()?.endsWith(".apk") == true }
             ?.child("browser_download_url").str() ?: return null
         return Release(version, apk, j.child("body").str() ?: "")

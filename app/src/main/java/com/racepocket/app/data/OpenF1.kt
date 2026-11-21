@@ -54,6 +54,19 @@ object OpenF1 {
             )
         }.sortedBy { it.start }
 
+    /** Every session of a season (used to find a session from its start time). */
+    suspend fun sessionsOfYear(year: Int): List<Session> =
+        Http.getJson("$B/sessions?year=$year").arr().map {
+            Session(
+                key = it.child("session_key").int() ?: 0,
+                meetingKey = it.child("meeting_key").int() ?: 0,
+                name = it.child("session_name").str() ?: "",
+                type = it.child("session_type").str() ?: "",
+                start = parseInstant(it.child("date_start").str()),
+                end = parseInstant(it.child("date_end").str())
+            )
+        }.sortedBy { it.start }
+
     suspend fun drivers(sk: Int): List<Driver> =
         Http.getJson("$B/drivers?session_key=$sk").arr().map {
             Driver(

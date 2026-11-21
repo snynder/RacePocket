@@ -31,7 +31,7 @@ Se o build falhar, abra o passo "Build" na execução, copie as linhas com `e:` 
 
 ## Atualizar pelo próprio app
 
-Cada build publica um **Release** no GitHub (`v<número do build>`) com o `RacePocket.apk`. Ao abrir, o app consulta o último release e, se houver versão nova, mostra um aviso no Início. Também dá para verificar em Ajustes › Atualizações. "Atualizar agora" baixa o APK e abre o instalador do Android. Na primeira vez, o Android pede para permitir instalações do RacePocket.
+Cada build publica um **Release** no GitHub (`v<versão>`, por exemplo `v2.1`) com o `RacePocket.apk`. Ao abrir, o app consulta o último release e, se houver versão nova, mostra um aviso no Início. Também dá para verificar em Ajustes › Atualizações. "Atualizar agora" baixa o APK e abre o instalador do Android. Na primeira vez, o Android pede para permitir instalações do RacePocket.
 
 - O repositório precisa ser **público**, porque o GitHub não mostra releases de repositório privado sem login.
 - O repositório é preenchido sozinho no build. Se mudar de lugar, ajuste em Ajustes › Atualizações.
@@ -49,7 +49,7 @@ Tudo o que o app baixa fica salvo no celular e é usado quando não há internet
   `https://raw.githubusercontent.com/SEU_USUARIO/SEU_REPO_DO_SITE/main/data/radios/`
   Rádios que não estiverem lá podem ser transcritos na hora com uma chave da OpenAI (Whisper). Isso é opcional e pago por uso, e a chave fica só no celular.
 - **Mapas:** cada pista é montada a partir da telemetria da classificação e fica salva no aparelho. Em Circuitos há um botão para baixar todas de uma vez.
-- **Versão:** o `versionCode` é o número da execução do Actions, então cada build novo instala por cima do anterior.
+- **Versão:** a versão que aparece no app e no release (2.0, 2.1…) fica em `version.txt` e precisa subir a cada build; se a versão já existir, o build para com um aviso. O `versionCode` continua sendo o número da execução do Actions (escondido), para cada build novo instalar por cima do anterior. Push que só altera o `RacePocket.apk` não dispara build.
 - **Idiomas:** português, inglês e espanhol estão traduzidos. Os outros idiomas da lista aparecem em inglês.
 
 ## Estrutura
