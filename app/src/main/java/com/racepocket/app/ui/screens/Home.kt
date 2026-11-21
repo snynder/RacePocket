@@ -62,7 +62,6 @@ import androidx.navigation.NavHostController
 import com.racepocket.app.R
 import com.racepocket.app.data.AppSettings
 import com.racepocket.app.data.CircuitHistory
-import com.racepocket.app.data.DayWeather
 import com.racepocket.app.data.DriverStanding
 import com.racepocket.app.data.Flags
 import com.racepocket.app.data.Jolpica
@@ -72,6 +71,7 @@ import com.racepocket.app.data.ResultRow
 import com.racepocket.app.data.SeasonLeaders
 import com.racepocket.app.data.SessionKind
 import com.racepocket.app.data.SessionTime
+import com.racepocket.app.data.SessionWeather
 import com.racepocket.app.data.live.LiveParser
 import com.racepocket.app.data.live.LiveTimingClient
 import com.racepocket.app.data.live.LiveView
@@ -107,6 +107,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.racepocket.app.data.FreshFetch
 import androidx.compose.ui.text.style.TextDecoration
 import java.time.Duration
 import java.time.Instant
@@ -124,7 +126,7 @@ data class HomeCore(
     val prevTeams: Map<String, Int> = emptyMap()
 )
 
-data class NextExtra(val history: CircuitHistory?, val weather: List<DayWeather>?, val lastPodium: List<ResultRow>)
+data class NextExtra(val history: CircuitHistory?, val weather: Map<SessionKind, SessionWeather>?, val lastPodium: List<ResultRow>)
 
 class HomeVM : BaseVM() {
     val core = MutableStateFlow<Load<HomeCore>>(Load.Loading)
@@ -161,6 +163,8 @@ class HomeVM : BaseVM() {
     }
 
     fun refresh() {
+        // refreshing is true during a pull to refresh: the weather fetched after the core then skips the cache too
+        val fresh = refreshing.value
         load(core) {
             val now = Instant.now()
             var year = Year.now().value
@@ -182,10 +186,10 @@ class HomeVM : BaseVM() {
             val pd = runCatching { Jolpica.previousPositions(standYear, teams = false) }.getOrDefault(emptyMap())
             val pt = runCatching { Jolpica.previousPositions(standYear, teams = true) }.getOrDefault(emptyMap())
             HomeCore(year, races + upcomingYear, next, last, lastResults, drivers, teams, pd, pt)
-        }.invokeOnCompletion { afterCore() }
+        }.invokeOnCompletion { afterCore(fresh) }
     }
 
-    private fun afterCore() {
+    private fun afterCore(fresh: Boolean = false) {
         val c = core.value.valueOrNull ?: return
         viewModelScope.launch { photos.value = OpenF1.latestHeadshots() }
         load(leaders) { Jolpica.seasonLeaders(c.year) }
@@ -196,7 +200,10 @@ class HomeVM : BaseVM() {
         }
         load(extra) {
             val history = runCatching { Jolpica.circuitHistory(next.circuitId) }.getOrNull()
-            val weather = runCatching { Weather.forecast(next.lat, next.lon, next.firstDay, next.lastDay) }.getOrNull()
+            val weather = runCatching {
+                if (fresh) withContext(FreshFetch()) { Weather.forSessions(next.lat, next.lon, next.sessions) }
+                else Weather.forSessions(next.lat, next.lon, next.sessions)
+            }.getOrNull()
             val lw = history?.lastWinner
             val podium = if (lw != null) runCatching { Jolpica.raceResults(lw.season, lw.round).second.take(3) }.getOrDefault(emptyList()) else emptyList()
             NextExtra(history, weather, podium)
@@ -532,7 +539,9 @@ private fun NextRaceCard(
                 }
             }
         }
-        // sessions of the weekend in the device time zone
+        // sessions of the weekend in the device time zone, each with the forecast for its time
+        val ex = extra.valueOrNull
+        val weather = ex?.weather.orEmpty()
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             next.sessions.forEach { s ->
                 val isLive = s.kind == liveKind && dot != null
@@ -548,18 +557,12 @@ private fun NextRaceCard(
                         fontSize = 12.sp, color = if (done) p.muted else p.text, modifier = Modifier.weight(1f), textDecoration = strike,
                         fontWeight = if (s.kind == SessionKind.RACE || isLive) FontWeight.Bold else FontWeight.Normal
                     )
-                    Mono(Fmt.weekdayTime(s.start), 12.sp, FontWeight.Normal, p.muted, decoration = strike)
+                    Mono(Fmt.weekdayTime(s.start), if (weather.isNotEmpty()) 11.sp else 12.sp, FontWeight.Normal, p.muted, decoration = strike)
+                    // same width on every line, so the forecasts line up
+                    if (weather.isNotEmpty()) SessionWeatherCell(weather[s.kind], done, Modifier.padding(start = 8.dp).width(84.dp))
                 }
             }
-        }
-        val ex = extra.valueOrNull
-        val weather = ex?.weather
-        if (weather != null && weather.isNotEmpty()) {
-            Row(Modifier.padding(horizontal = 14.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                weather.takeLast(3).forEach { day -> WeatherDay(day, Modifier.weight(1f)) }
-            }
-        } else if (ex != null) {
-            Muted(stringResource(R.string.weather_soon), 11.sp, Modifier.padding(horizontal = 14.dp))
+            if (ex != null && weather.isEmpty()) Muted(stringResource(R.string.weather_soon), 11.sp, Modifier.padding(top = 6.dp))
         }
         if (track != null) {
             TrackMap(track, Tracks.zonesFor(track.name), Modifier.padding(top = 8.dp))
@@ -633,18 +636,20 @@ private fun NextRaceCard(
 
 private val MEDALS = listOf(Color(0xFFFFD12E), Color(0xFFC9C9D3), Color(0xFFD08A4C))
 
+/** Sky, temperature at the start and rain chance of one session; empty when there is no forecast yet. */
 @Composable
-fun WeatherDay(d: DayWeather, modifier: Modifier = Modifier) {
+private fun SessionWeatherCell(w: SessionWeather?, done: Boolean, modifier: Modifier = Modifier) {
     val p = pal()
-    Column(modifier.clip(RoundedCornerShape(10.dp)).background(p.bg).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(Fmt.weekdayDayMonth(d.date), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = p.muted, maxLines = 1)
-        Text(weatherEmoji(d.code), fontSize = 20.sp)
-        Mono("${d.max?.toInt() ?: "-"}° / ${d.min?.toInt() ?: "-"}°", 11.sp, FontWeight.Bold)
-        Text(stringResource(R.string.rain_pct, d.rain ?: 0), fontSize = 10.sp, color = Color(0xFF6CB6FF))
+    Row(modifier.alpha(if (done) 0.55f else 1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
+        if (w == null) return@Row
+        Text(weatherEmoji(w.code, w.day), fontSize = 13.sp)
+        Mono("${w.temp?.let { Math.round(it) } ?: "-"}°", 11.sp, FontWeight.Bold, modifier = Modifier.padding(start = 3.dp))
+        Text(stringResource(R.string.rain_pct, w.rain ?: 0), fontSize = 10.sp, color = Color(0xFF6CB6FF), maxLines = 1, modifier = Modifier.padding(start = 4.dp))
     }
 }
 
-fun weatherEmoji(code: Int): String = when {
+fun weatherEmoji(code: Int, day: Boolean = true): String = when {
+    !day && code <= 2 -> "🌙"
     code == 0 -> "☀️"
     code <= 2 -> "🌤️"
     code == 3 -> "☁️"
