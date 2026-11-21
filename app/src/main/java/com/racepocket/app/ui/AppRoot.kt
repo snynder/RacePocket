@@ -15,6 +15,8 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,7 +65,7 @@ object Routes {
     const val COMPARE = "compare"
     const val RECORDS = "records"
     fun circuit(id: String, year: Int? = null, round: Int? = null) = "circuit/$id?year=${year ?: -1}&round=${round ?: -1}"
-    fun race(year: Int, round: Int) = "race/$year/$round"
+    fun race(year: Int, round: Int, tab: Int? = null) = "race/$year/$round" + (tab?.let { "?tab=$it" } ?: "")
 }
 
 private data class Tab(val route: String, val label: Int, val icon: ImageVector)
@@ -87,6 +89,11 @@ private fun tabOf(route: String?): String = when {
 }
 
 /** Bottom bar: always opens the tab's main screen. Inside a tab (e.g. Replay under More), tapping it goes back to its menu. */
+/** Screen asked by a tapped notification; AppRoot opens it on top of Home. */
+object DeepLink {
+    val route = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+}
+
 fun NavHostController.goTab(route: String) {
     if (popBackStack(route, inclusive = false)) return
     navigate(route) {
@@ -150,10 +157,26 @@ fun AppRoot(settings: AppSettings) {
                     )
                 }
                 composable(
-                    "race/{year}/{round}",
-                    arguments = listOf(navArgument("year") { type = NavType.IntType }, navArgument("round") { type = NavType.IntType })
+                    "race/{year}/{round}?tab={tab}",
+                    arguments = listOf(
+                        navArgument("year") { type = NavType.IntType },
+                        navArgument("round") { type = NavType.IntType },
+                        navArgument("tab") { type = NavType.IntType; defaultValue = 0 }
+                    )
                 ) { e ->
-                    RaceScreen(nav, e.arguments?.getInt("year") ?: 0, e.arguments?.getInt("round") ?: 0, settings)
+                    RaceScreen(nav, e.arguments?.getInt("year") ?: 0, e.arguments?.getInt("round") ?: 0, settings, e.arguments?.getInt("tab") ?: 0)
+                }
+            }
+            // a tapped notification: open its screen over Home, so back returns to Home
+            val pending by DeepLink.route.collectAsState()
+            LaunchedEffect(pending) {
+                val r = pending ?: return@LaunchedEffect
+                DeepLink.route.value = null
+                runCatching {
+                    nav.navigate(r) {
+                        popUpTo(nav.graph.findStartDestination().id)
+                        launchSingleTop = true
+                    }
                 }
             }
         }

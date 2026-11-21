@@ -33,6 +33,7 @@ import com.racepocket.app.data.Race
 import com.racepocket.app.data.Repo
 import com.racepocket.app.data.SessionKind
 import com.racepocket.app.data.SessionTime
+import com.racepocket.app.ui.Routes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -44,6 +45,8 @@ object Notifier {
     const val CHANNEL_RESULTS = "results"
     private const val PREFS = "alarms"
     private const val RESULT_TAG = "result"
+    /** Screen (navigation route) to open when the notification is tapped. */
+    const val EXTRA_ROUTE = "route"
 
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= 26) {
@@ -101,7 +104,7 @@ object Notifier {
             val id = (race.season * 1000 + race.round * 10 + session.kind.ordinal)
             val title = "${race.flag} ${race.name}".trim()
             val text = context.getString(R.string.notif_text, sessionLabel(context, session.kind), s.leadMinutes)
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.toEpochMilli(), pending(context, id, title, text))
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.toEpochMilli(), pending(context, id, title, text, Routes.LIVE))
             ids += id.toString()
         }
         prefs.edit().putStringSet("ids", ids).apply()
@@ -183,22 +186,37 @@ object Notifier {
             null
         } ?: return false
         val list = top.mapIndexed { i, n -> "P${i + 1} $n" }.joinToString(" · ")
-        show(context, id, "$title · ${sessionLabel(context, kind)}", context.getString(R.string.results_notif_text, list), CHANNEL_RESULTS)
+        // opens the race page on the tab of this session
+        val tab = when (kind) {
+            SessionKind.RACE -> 0
+            SessionKind.QUALI -> 1
+            SessionKind.SPRINT -> 2
+            else -> 4 // practice tab (also lists sprint qualifying)
+        }
+        show(
+            context, id, "$title · ${sessionLabel(context, kind)}", context.getString(R.string.results_notif_text, list),
+            CHANNEL_RESULTS, Routes.race(season, round, tab)
+        )
         prefs.edit().putStringSet("results_done", (done + id.toString()).toList().takeLast(200).toSet()).apply()
         return true
     }
 
-    private fun pending(context: Context, id: Int, title: String, text: String): PendingIntent {
+    private fun pending(context: Context, id: Int, title: String, text: String, route: String? = null): PendingIntent {
         val i = Intent(context, SessionAlarmReceiver::class.java).putExtra("id", id).putExtra("title", title).putExtra("text", text)
+            .putExtra(EXTRA_ROUTE, route)
         return PendingIntent.getBroadcast(context, id, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
-    fun show(context: Context, id: Int, title: String, text: String, channel: String = CHANNEL) {
+    fun show(context: Context, id: Int, title: String, text: String, channel: String = CHANNEL, route: String? = null) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
+        // one request code per notification, so each keeps its own screen to open
         val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            context, id,
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(EXTRA_ROUTE, route),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val n = NotificationCompat.Builder(context, channel)
@@ -216,7 +234,10 @@ object Notifier {
 
 class SessionAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        Notifier.show(context, intent.getIntExtra("id", 0), intent.getStringExtra("title") ?: "", intent.getStringExtra("text") ?: "")
+        Notifier.show(
+            context, intent.getIntExtra("id", 0), intent.getStringExtra("title") ?: "", intent.getStringExtra("text") ?: "",
+            route = intent.getStringExtra(Notifier.EXTRA_ROUTE)
+        )
     }
 }
 

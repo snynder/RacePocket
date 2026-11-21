@@ -608,7 +608,7 @@ class RaceVM(private val year: Int, private val round: Int) : BaseVM() {
             if (year < 2023) return@load emptyList()
             val meeting = OpenF1.meetings(year).minByOrNull { m -> abs((m.start?.toEpochMilli() ?: 0L) - (r.sessions.firstOrNull()?.start?.toEpochMilli() ?: 0L)) }
                 ?: return@load emptyList()
-            val sessions = OpenF1.sessions(meeting.key).filter { it.name.startsWith("Practice") }
+            val sessions = OpenF1.sessions(meeting.key).filter { it.name.startsWith("Practice") || it.name == "Sprint Qualifying" || it.name == "Sprint Shootout" }
             sessions.map { s ->
                 val drivers = OpenF1.drivers(s.key).associateBy { it.number }
                 s.name to OpenF1.sessionResult(s.key).map { it to drivers[it.driver] }
@@ -618,12 +618,15 @@ class RaceVM(private val year: Int, private val round: Int) : BaseVM() {
 }
 
 @Composable
-fun RaceScreen(nav: NavHostController, year: Int, round: Int, settings: AppSettings) {
+fun RaceScreen(nav: NavHostController, year: Int, round: Int, settings: AppSettings, initialTab: Int = 0) {
     val vm: RaceVM = viewModel(key = "race-$year-$round") { RaceVM(year, round) }
     val data by vm.data.collectAsState()
     val track by vm.track.collectAsState()
     val practice by vm.practice.collectAsState()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    // opened straight on the practice tab (from a notification): load it once the race is known
+    val raceLoaded = data is Load.Ok
+    androidx.compose.runtime.LaunchedEffect(raceLoaded) { if (raceLoaded && tab == 4) vm.loadPractice() }
     val p = pal()
     PullRefresh(vm, { vm.refresh() }) {
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
