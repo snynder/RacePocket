@@ -3,6 +3,9 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+    # a push with only the APK (the "APK da versão N" commit) does not start a new build
+    paths-ignore:
+      - RacePocket.apk
   workflow_dispatch:
 
 permissions:
