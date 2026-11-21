@@ -62,7 +62,7 @@ class LiveTimingClient(private val scope: CoroutineScope) {
     private var ws: WebSocket? = null
     private val jobs = java.util.concurrent.CopyOnWriteArrayList<Job>()
 
-    private val TOPICS = listOf("TimingData", "TimingAppData", "DriverList", "RaceControlMessages", "TrackStatus", "LapCount", "SessionInfo", "SessionStatus", "ExtrapolatedClock", "TimingStats")
+    private val TOPICS = listOf("TimingData", "TimingAppData", "DriverList", "RaceControlMessages", "TrackStatus", "LapCount", "SessionInfo", "SessionStatus", "ExtrapolatedClock", "TimingStats", "SessionData")
     private val RS = '\u001e'
 
     fun connect() {
@@ -262,10 +262,48 @@ data class LiveView(
     val rows: List<TowerRow> = emptyList(),
     val messages: List<RaceMsg> = emptyList(),
     val year: Int? = null,
-    val countryCode: String? = null
-)
+    val countryCode: String? = null,
+    /** Qualifying part from TimingData.SessionPart (1..3), when the feed sends it. */
+    val part: Int? = null,
+    /** How many times the session went to "Finished" (SessionData.StatusSeries): one per qualifying part. */
+    val finishedCount: Int = 0
+) {
+    val isQuali: Boolean get() = sessionType == "Qualifying" || session.contains("Qualifying") || session.contains("Shootout")
+    private val isSprintQuali: Boolean get() = session.contains("Sprint") || session.contains("Shootout")
+
+    /**
+     * In qualifying the feed sends "Finished" at the end of Q1 and Q2 too. It is only a break if fewer than
+     * three parts have finished (StatusSeries), or, without that history, if SessionPart is still below 3.
+     */
+    val partBreak: Boolean get() = isQuali && status == "Finished" &&
+        (if (finishedCount > 0) finishedCount < 3 else (part ?: 3) < 3)
+
+    /** The session is really over (not just the end of Q1/Q2). */
+    val over: Boolean get() = status == "Finalised" || status == "Ends" || (status == "Finished" && !partBreak)
+
+    /** Current qualifying part (1..3): the one running, or the one that just ended during a break. */
+    val currentPart: Int? get() {
+        if (!isQuali) return null
+        val fromSeries = when {
+            finishedCount == 0 -> null
+            status == "Finished" -> finishedCount
+            else -> finishedCount + 1
+        }
+        return (fromSeries ?: part)?.coerceIn(1, 3)
+    }
+
+    /** "Q1".."Q3" or "SQ1".."SQ3"; null outside qualifying. */
+    val partLabel: String? get() = currentPart?.let { (if (isSprintQuali) "SQ" else "Q") + it }
+}
 
 object LiveParser {
+    /** The snapshot sends series as arrays and the updates as {"index": item}; accept both. */
+    private fun seriesValues(e: JsonElement?): List<JsonElement> = when (e) {
+        is JsonArray -> e.toList()
+        is JsonObject -> e.entries.sortedBy { it.key.toIntOrNull() ?: Int.MAX_VALUE }.map { it.value }
+        else -> emptyList()
+    }
+
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
 
     fun parse(t: Map<String, JsonElement>): LiveView {
@@ -319,7 +357,9 @@ object LiveParser {
             rows = rows,
             messages = msgs,
             year = info.child("StartDate").str()?.take(4)?.toIntOrNull(),
-            countryCode = info.path("Meeting", "Country", "Code").str()
+            countryCode = info.path("Meeting", "Country", "Code").str(),
+            part = t["TimingData"].child("SessionPart").int(),
+            finishedCount = seriesValues(t["SessionData"].child("StatusSeries")).count { it.child("SessionStatus").str() == "Finished" }
         )
     }
 }

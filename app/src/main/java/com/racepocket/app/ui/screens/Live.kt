@@ -34,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewModelScope
@@ -192,15 +191,20 @@ private fun LiveHeader(v: LiveView) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val on = v.status == "Started"
             Text(
-                if (on) "● " + stringResource(R.string.live_badge) else statusLabel(v.status),
+                when {
+                    on -> "● " + stringResource(R.string.live_badge)
+                    v.partBreak -> stringResource(R.string.quali_part_end, v.partLabel ?: "")
+                    else -> statusLabel(v.status)
+                },
                 fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (on) p.accentText else p.muted,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (on) p.liveBg else p.card2).padding(horizontal = 8.dp, vertical = 3.dp)
             )
+            if (!v.partBreak) v.partLabel?.let { QualiPartPill(it, active = !v.over) }
             Flag(Flags.ioc(v.countryCode), 14.sp)
-            val over = v.status in listOf("Finished", "Finalised", "Ends")
+            // no strike-through here: that is only for the Home banner and the weekend list
             Text(
                 "${Fmt.raceName(v.meeting)} · ${openF1SessionName(v.session)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2,
-                color = if (over) p.muted else p.text, textDecoration = if (over) TextDecoration.LineThrough else null
+                color = p.text
             )
         }
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -210,6 +214,16 @@ private fun LiveHeader(v: LiveView) {
             Muted(stringResource(R.string.live_source_f1), 10.sp)
         }
     }
+}
+
+/** Q1 / Q2 / Q3 (or SQ1..SQ3) tag. */
+@Composable
+fun QualiPartPill(label: String, active: Boolean = true) {
+    val p = pal()
+    Text(
+        label, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = if (active) Color.White else p.muted,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(if (active) p.accent else p.card2).padding(horizontal = 7.dp, vertical = 3.dp)
+    )
 }
 
 @Composable

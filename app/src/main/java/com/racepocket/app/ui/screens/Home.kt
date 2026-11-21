@@ -215,25 +215,31 @@ fun currentSession(races: List<Race>, now: Instant): Pair<Race, SessionTime>? {
     return null
 }
 
-enum class DotColor { GREEN, YELLOW, RED }
+enum class DotColor { GREEN, YELLOW, RED, GREY }
 
 data class LiveDotState(val color: DotColor, val label: String?)
 
 /** Whether the session is actually running, and its flag, from the live feed when available. */
 @Composable
 fun liveDotState(s: SessionTime, v: LiveView?, now: Instant): LiveDotState? {
-    val running = when (v?.status) {
-        "Started", "Aborted" -> true
-        "Finished", "Finalised", "Ends" -> false
+    val running = when {
+        v == null -> !now.isBefore(s.start) && now.isBefore(s.end)
+        v.partBreak -> true // end of Q1/Q2: qualifying is still on
+        v.over -> false
+        v.status == "Started" || v.status == "Aborted" -> true
         else -> !now.isBefore(s.start) && now.isBefore(s.end)
     }
     if (!running) return null
-    return when {
+    val part = v?.partLabel
+    if (v != null && v.partBreak) return LiveDotState(DotColor.GREY, stringResource(R.string.quali_part_end, part ?: ""))
+    val state = when {
         v?.trackStatus == "5" || v?.status == "Aborted" -> LiveDotState(DotColor.RED, stringResource(R.string.flag_red))
         v?.trackStatus == "4" -> LiveDotState(DotColor.YELLOW, stringResource(R.string.safety_car))
         v?.trackStatus == "6" || v?.trackStatus == "7" -> LiveDotState(DotColor.YELLOW, stringResource(R.string.vsc))
         else -> LiveDotState(DotColor.GREEN, null)
     }
+    // "Q2" or "Q2 · Safety car"
+    return if (part == null) state else state.copy(label = listOfNotNull(part, state.label).joinToString(" · "))
 }
 
 @Composable
@@ -244,8 +250,17 @@ fun BlinkingDot(color: DotColor, size: androidx.compose.ui.unit.Dp = 9.dp) {
         DotColor.GREEN -> Color(0xFF2ECC71)
         DotColor.YELLOW -> Color(0xFFFFC400)
         DotColor.RED -> Color(0xFFFF2D2D)
+        DotColor.GREY -> Color(0xFF8A929C)
     }
     Box(Modifier.size(size).alpha(alpha).clip(CircleShape).background(c))
+}
+
+/** The next session to count down to, among the ones the user picked in the countdown settings. */
+fun nextCountdown(races: List<Race>, settings: AppSettings, now: Instant): Pair<Race, SessionTime>? {
+    if (!settings.countdownEnabled) return null
+    return races.flatMap { r -> r.sessions.map { r to it } }
+        .filter { settings.countdown[it.second.kind] == true && it.second.start.isAfter(now) }
+        .minByOrNull { it.second.start }
 }
 
 /** The session happening now, if any, and if the user wants the banner for it. */
@@ -309,11 +324,20 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                 is Load.Ok -> {
                     val data = c.value
                     val live = liveSession(data.races, settings, now)
-                    if (live != null) {
-                        // past its start and no longer running: the session is over
-                        val start = live.first.sessions.firstOrNull { it.kind == live.second }?.start
-                        val over = dot == null && start != null && now.isAfter(start)
-                        item { LiveBanner(live.first, live.second, dot, over) { nav.navigate(Routes.LIVE) } }
+                    // past its start and no longer running: the session is over
+                    val liveStart = live?.let { l -> l.first.sessions.firstOrNull { it.kind == l.second }?.start }
+                    val running = live != null && dot != null
+                    val over = live != null && dot == null && liveStart != null && now.isAfter(liveStart)
+                    // the countdown sits where the live banner goes, and gives way to it while a session is on
+                    val countdown = if (running) null else nextCountdown(data.races, settings, now)
+                    when {
+                        running -> item { LiveBanner(live!!.first, live.second, dot, false) { nav.navigate(Routes.LIVE) } }
+                        countdown != null -> item {
+                            CountdownBanner(countdown.first, countdown.second) {
+                                nav.navigate(Routes.circuit(countdown.first.circuitId, countdown.first.season, countdown.first.round))
+                            }
+                        }
+                        live != null -> item { LiveBanner(live.first, live.second, dot, over) { nav.navigate(Routes.LIVE) } }
                     }
 
                     val upcoming = data.races.filter { !it.isFinished(now) }.take(8)
@@ -413,6 +437,38 @@ private fun LiveBanner(race: Race, kind: SessionKind, dot: LiveDotState?, over: 
         Text(stringResource(R.string.see_timing), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = p.accentText)
     }
 }
+
+@Composable
+private fun CountdownBanner(race: Race, session: SessionTime, onClick: () -> Unit) {
+    val p = pal()
+    var now by remember { mutableStateOf(Instant.now()) }
+    LaunchedEffect(session.start) {
+        while (true) { now = Instant.now(); delay(1000) }
+    }
+    val d = Duration.between(now, session.start).coerceAtLeast(Duration.ZERO)
+    val clock = String.format("%02d:%02d:%02d", d.toHours() % 24, d.toMinutes() % 60, d.seconds % 60)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.card)
+            .border(1.dp, p.divider, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.next_session).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = p.accentText)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Flag(race.flag, 14.sp)
+                Text("${sessionName(session.kind)} · ${Fmt.raceName(race.name)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, color = p.text)
+            }
+            Mono(Fmt.weekdayTime(session.start), 11.sp, FontWeight.Normal, p.muted)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            if (d.toDays() > 0) Muted(pluralDays(d.toDays()), 11.sp)
+            Mono(clock, 18.sp, FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun pluralDays(n: Long): String = "$n " + stringResource(R.string.days)
 
 @Composable
 private fun UpcomingCard(r: Race, isNext: Boolean, onClick: () -> Unit) {

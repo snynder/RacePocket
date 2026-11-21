@@ -281,4 +281,8 @@
     <string name="notif_sprint_race_sub">La carrera sprint del sábado</string>
     <string name="update_new_title">Nueva versión disponible: %1$d</string>
     <string name="update_current">Versión actual: %1$d</string>
+    <string name="countdown_title">Cuenta regresiva en Inicio</string>
+    <string name="countdown_enable">Mostrar cuenta regresiva</string>
+    <string name="countdown_enable_sub">Tiempo hasta la próxima sesión, donde va el banner en vivo. Durante la sesión, deja lugar al en vivo.</string>
+    <string name="quali_part_end">Fin de la %1$s</string>
 </resources>

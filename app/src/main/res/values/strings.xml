@@ -282,4 +282,8 @@
     <string name="notif_sprint_race_sub">The Saturday sprint race</string>
     <string name="update_new_title">New version available: %1$d</string>
     <string name="update_current">Current version: %1$d</string>
+    <string name="countdown_title">Countdown on Home</string>
+    <string name="countdown_enable">Show countdown</string>
+    <string name="countdown_enable_sub">Time left to the next session, where the live banner goes. During a session it gives way to the live timing.</string>
+    <string name="quali_part_end">End of %1$s</string>
 </resources>

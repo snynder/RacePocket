@@ -237,6 +237,19 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
             }
         }
 
+        item { Muted(stringResource(R.string.countdown_title).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                ToggleRow(stringResource(R.string.countdown_enable), stringResource(R.string.countdown_enable_sub), s.countdownEnabled) { on ->
+                    edit({ it[Keys.countdownEnabled] = on })
+                }
+                if (s.countdownEnabled) {
+                    Divider()
+                    SessionLevels(s.countdown, Keys::countdown) { b -> edit(b) }
+                }
+            }
+        }
+
         item { Muted(stringResource(R.string.nav_radio).uppercase(), 12.sp) }
         item {
             CardBox {
