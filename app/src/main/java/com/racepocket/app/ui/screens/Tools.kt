@@ -439,7 +439,11 @@ private fun LapSummary(t: TelData) {
 private fun Chart(title: String, t: TelData, value: (TI.Tel) -> FloatArray, lo: Float, hi: Float, height: androidx.compose.ui.unit.Dp = 120.dp) {
     val p = pal()
     CardBox(padding = 10.dp) {
-        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.text)
+        // title on the left, legend (line colour + driver code) on the right of the same line
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.text, modifier = Modifier.weight(1f))
+            ChartLegend(listOf(t.colorA to t.codeA, t.colorB to t.codeB))
+        }
         Canvas(Modifier.fillMaxWidth().height(height).padding(top = 6.dp)) {
             val maxD = max(t.a.distance.lastOrNull { !it.isNaN() } ?: 1f, t.b.distance.lastOrNull { !it.isNaN() } ?: 1f)
             fun path(tel: TI.Tel): Path {
@@ -885,7 +889,9 @@ fun CompareScreen(nav: NavHostController) {
                         val (x, z) = r.value
                         val colorA = if (mode == 0) Color(0xFF6B9CFF) else teamColor(com.racepocket.app.data.Static.teamColor(a))
                         val colorB = if (mode == 0) Color(0xFFFF8000) else teamColor(com.racepocket.app.data.Static.teamColor(b)).let { if (a == b) Color.White else it }
-                        CompareTable(x, z, career, mode == 0, colorA, colorB)
+                        fun label(id: String?, fallback: String): String = (if (mode == 0) drivers.firstOrNull { it.id == id }?.let { it.code.ifBlank { it.last } }
+                            else teams.firstOrNull { it.id == id }?.name) ?: fallback
+                        CompareTable(x, z, career, mode == 0, colorA, colorB, label(a, "A"), label(b, "B"))
                     }
                 }
             }
@@ -905,7 +911,7 @@ private fun YearRow(label: String, x: String, z: String) {
 }
 
 @Composable
-private fun CompareTable(x: StatLine, z: StatLine, career: Boolean, drivers: Boolean, colorA: Color, colorB: Color) {
+private fun CompareTable(x: StatLine, z: StatLine, career: Boolean, drivers: Boolean, colorA: Color, colorB: Color, nameA: String, nameB: String) {
     val p = pal()
     data class M(val label: String, val a: Double?, val b: Double?, val higherIsBetter: Boolean, val decimals: Int = 0)
     val qDuel = if (!career && drivers) x.qualiByRound.keys.intersect(z.qualiByRound.keys).let { rs -> rs.count { x.qualiByRound[it]!! < z.qualiByRound[it]!! } to rs.count { z.qualiByRound[it]!! < x.qualiByRound[it]!! } } else null
@@ -928,6 +934,9 @@ private fun CompareTable(x: StatLine, z: StatLine, career: Boolean, drivers: Boo
             M(stringResource(R.string.points_per_race), x.points / x.starts.coerceAtLeast(1), z.points / z.starts.coerceAtLeast(1), true, 2) else null
     )
     CardBox(padding = 12.dp) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), horizontalArrangement = Arrangement.End) {
+            ChartLegend(listOf(colorA to nameA, colorB to nameB))
+        }
         rows.forEach { m ->
             val av = m.a
             val bv = m.b
@@ -964,6 +973,20 @@ private fun CompareTable(x: StatLine, z: StatLine, career: Boolean, drivers: Boo
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Legend for comparison charts: a colour block per series and its label, sized to sit inside a text line. */
+@Composable
+private fun ChartLegend(items: List<Pair<Color, String>>) {
+    val p = pal()
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.forEach { (c, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(Modifier.width(16.dp).height(10.dp).clip(RoundedCornerShape(3.dp)).background(c))
+                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.muted, maxLines = 1)
             }
         }
     }
