@@ -29,6 +29,7 @@
     <string name="last_best">Last/Best</string>
     <string name="tyre">Tyre</string>
     <string name="stops_short">Pit</string>
+    <string name="tyre_laps">Laps</string>
     <string name="out_tag">OUT</string>
     <string name="in_pit">PIT</string>
     <string name="leader">Leader</string>
@@ -291,4 +292,6 @@
     <string name="results_notif_enable_sub">Top 3 of each session when the result is published</string>
     <string name="results_notif_channel">Session results</string>
     <string name="results_notif_text">Result: %1$s</string>
+    <string name="expand">Expand</string>
+    <string name="collapse">Collapse</string>
 </resources>

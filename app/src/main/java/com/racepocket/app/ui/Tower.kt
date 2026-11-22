@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,15 +34,18 @@ fun TowerHeader() {
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         H(stringResource(R.string.pos_short), Modifier.width(22.dp), TextAlign.End)
         Box(Modifier.width(13.dp))
-        H(stringResource(R.string.driver), Modifier.width(54.dp), TextAlign.Start)
+        H(stringResource(R.string.driver), Modifier.width(DRIVER_W), TextAlign.Start)
         H(stringResource(R.string.gap_interval), Modifier.weight(1f), TextAlign.End)
         H(stringResource(R.string.last_best), Modifier.width(84.dp), TextAlign.End)
-        H(stringResource(R.string.tyre), Modifier.width(TYRE_W).padding(start = 8.dp), TextAlign.Start)
+        H(stringResource(R.string.tyre), Modifier.width(TYRE_W), TextAlign.Center)
+        H(stringResource(R.string.tyre_laps), Modifier.width(LAPS_W), TextAlign.Center)
         H(stringResource(R.string.stops_short), Modifier.width(STOPS_W), TextAlign.End)
     }
 }
 
-private val TYRE_W = 46.dp
+private val DRIVER_W = 54.dp
+private val TYRE_W = 38.dp
+private val LAPS_W = 40.dp
 private val STOPS_W = 24.dp
 
 @Composable
@@ -49,14 +55,16 @@ fun TowerLine(r: TowerRow) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("${r.position}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (r.out) p.muted else p.text, modifier = Modifier.width(22.dp), textAlign = TextAlign.End)
         Box(Modifier.width(13.dp), contentAlignment = Alignment.Center) { TeamBar(hexColor(r.teamColor), 24.dp) }
-        Column(Modifier.width(54.dp)) {
+        // a surname that does not fit is never cut: the row keeps only the three-letter code,
+        // which then sits alone, centred on the team colour bar
+        val tag = when {
+            r.out -> stringResource(R.string.out_tag)
+            r.inPit -> stringResource(R.string.in_pit)
+            else -> r.name.takeIf { it.isNotBlank() && fitsWidth(upText(it), 10.sp, DRIVER_W) }
+        }
+        Column(Modifier.width(DRIVER_W)) {
             Text(r.tla, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (r.out) p.muted else p.text)
-            val tag = when {
-                r.out -> stringResource(R.string.out_tag)
-                r.inPit -> stringResource(R.string.in_pit)
-                else -> r.name
-            }
-            Text(tag, fontSize = 10.sp, color = if (r.inPit || r.out) Color_Amber else p.muted, maxLines = 1)
+            if (tag != null) Text(tag, fontSize = 10.sp, color = if (r.inPit || r.out) Color_Amber else p.muted, maxLines = 1, softWrap = false)
         }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
             Mono(if (r.position == 1) stringResource(R.string.leader) else r.gap, 12.sp, FontWeight.Normal)
@@ -66,7 +74,8 @@ fun TowerLine(r: TowerRow) {
             Mono(r.last.ifBlank { "—" }, 12.sp, FontWeight.Normal, if (r.lastPersonalBest) p.green else p.text)
             Mono(r.best.ifBlank { "—" }, 10.sp, FontWeight.Normal, if (r.bestOverall) p.purple else p.muted)
         }
-        Box(Modifier.width(TYRE_W).padding(start = 8.dp), contentAlignment = Alignment.CenterStart) { TyreBadge(r.compound, r.tyreAge, fixed = true) }
+        Box(Modifier.width(TYRE_W), contentAlignment = Alignment.Center) { TyreBadge(r.compound, null) }
+        Text(r.tyreAge?.toString() ?: "", fontSize = 12.sp, color = p.text, modifier = Modifier.width(LAPS_W), textAlign = TextAlign.Center, maxLines = 1)
         Text(r.stops?.toString() ?: "", fontSize = 12.sp, color = p.text, modifier = Modifier.width(STOPS_W), textAlign = TextAlign.End)
     }
 }
@@ -106,4 +115,15 @@ fun FlagPill(status: String) {
             .background(color, RoundedCornerShape(50))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     )
+}
+
+/** Whether [text] fits on one line in [width] at [size], with the app's text style (letter spacing included). */
+@Composable
+private fun fitsWidth(text: String, size: androidx.compose.ui.unit.TextUnit, width: androidx.compose.ui.unit.Dp): Boolean {
+    val measurer = rememberTextMeasurer()
+    val style = androidx.compose.material3.LocalTextStyle.current.copy(fontSize = size)
+    val px = with(LocalDensity.current) { width.roundToPx() }
+    return remember(text, style, px) {
+        measurer.measure(text, style, maxLines = 1, softWrap = false).size.width <= px
+    }
 }

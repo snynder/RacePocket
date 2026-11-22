@@ -28,6 +28,7 @@
     <string name="last_best">Últ/Mejor</string>
     <string name="tyre">Neum.</string>
     <string name="stops_short">Pit</string>
+    <string name="tyre_laps">Vtas.</string>
     <string name="out_tag">FUERA</string>
     <string name="in_pit">BOX</string>
     <string name="leader">Líder</string>
@@ -290,4 +291,6 @@
     <string name="results_notif_enable_sub">Top 3 de cada sesión cuando se publique el resultado</string>
     <string name="results_notif_channel">Resultados de las sesiones</string>
     <string name="results_notif_text">Resultado: %1$s</string>
+    <string name="expand">Expandir</string>
+    <string name="collapse">Contraer</string>
 </resources>

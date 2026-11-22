@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -410,14 +412,17 @@ fun TelemetryScreen(nav: NavHostController) {
 @Composable
 private fun LapSummary(t: TelData) {
     val p = pal()
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // both cards always the same height: the gap sits beside the lap time, not on a line of its own
+    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(Triple(t.codeA, t.lapA, t.colorA), Triple(t.codeB, t.lapB, t.colorB)).forEachIndexed { i, (code, lap, color) ->
             val other = if (i == 0) t.lapB else t.lapA
-            Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(p.card).padding(12.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(p.card).padding(12.dp)) {
                 Box(Modifier.fillMaxWidth().height(3.dp).background(color))
                 Text(code, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = p.text, modifier = Modifier.padding(top = 6.dp))
-                Mono(fmtLap(lap.time), 16.sp, FontWeight.Bold)
-                if (lap.time > other.time) Mono(String.format("+%.3f", lap.time - other.time), 11.sp, FontWeight.Normal, p.accentText)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Mono(fmtLap(lap.time), 16.sp, FontWeight.Bold, modifier = Modifier.weight(1f))
+                    if (lap.time > other.time) Mono(String.format("+%.3f", lap.time - other.time), 11.sp, FontWeight.Normal, p.accentText)
+                }
                 listOf(lap.s1 to other.s1, lap.s2 to other.s2, lap.s3 to other.s3).forEachIndexed { k, (mine, theirs) ->
                     val best = mine != null && (theirs == null || mine <= theirs)
                     Row {

@@ -744,8 +744,8 @@ private fun Highlights(rd: RaceData) {
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { (label, drv, sub) -> StatTile(label.uppercase(), drv.last, Modifier.weight(1f), sub, drv.flag) }
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (label, drv, sub) -> StatTile(label.uppercase(), drv.last, Modifier.weight(1f).fillMaxHeight(), sub, drv.flag) }
                 if (row.size == 1) Box(Modifier.weight(1f))
             }
         }

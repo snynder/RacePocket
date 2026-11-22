@@ -28,7 +28,8 @@ data class AppSettings(
     val transcriptsUrl: String = "",
     val whisperKey: String = "",
     val uppercase: Boolean = true,
-    val updateRepo: String = ""
+    val updateRepo: String = "",
+    val liveMapCollapsed: Boolean = false
 ) {
     val effectiveCountry: String get() = country ?: Static.deviceCountry()
 }
@@ -42,6 +43,7 @@ object Keys {
     val whisper = stringPreferencesKey("whisper_key")
     val uppercase = booleanPreferencesKey("uppercase")
     val updateRepo = stringPreferencesKey("update_repo")
+    val liveMapCollapsed = booleanPreferencesKey("live_map_collapsed")
     fun notif(k: SessionKind) = booleanPreferencesKey("notif_" + k.name)
     fun banner(k: SessionKind) = booleanPreferencesKey("banner_" + k.name)
     val resultsEnabled = booleanPreferencesKey("results_enabled")
@@ -69,7 +71,8 @@ class SettingsRepo(private val context: Context) {
             transcriptsUrl = p[Keys.transcripts] ?: d.transcriptsUrl,
             whisperKey = p[Keys.whisper] ?: d.whisperKey,
             uppercase = p[Keys.uppercase] ?: d.uppercase,
-            updateRepo = p[Keys.updateRepo] ?: d.updateRepo
+            updateRepo = p[Keys.updateRepo] ?: d.updateRepo,
+            liveMapCollapsed = p[Keys.liveMapCollapsed] ?: d.liveMapCollapsed
         )
     }
 

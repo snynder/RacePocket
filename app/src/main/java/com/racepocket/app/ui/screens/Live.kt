@@ -1,6 +1,8 @@
 package com.racepocket.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
@@ -28,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,8 +48,10 @@ import com.racepocket.app.R
 import com.racepocket.app.data.AppSettings
 import com.racepocket.app.data.Flags
 import com.racepocket.app.data.Jolpica
+import com.racepocket.app.data.Keys
 import com.racepocket.app.data.OpenF1
 import com.racepocket.app.data.Race
+import com.racepocket.app.data.Repo
 import com.racepocket.app.data.TrackGeometry
 import com.racepocket.app.data.Tracks
 import com.racepocket.app.data.fmtGap
@@ -169,7 +176,7 @@ fun LiveScreen(nav: NavHostController, settings: AppSettings) {
                 !v.hasTiming -> item { NoSessionCard(calendar) { nav.navigate(Routes.REPLAY) } }
                 else -> {
                     item { LiveHeader(v) }
-                    track?.let { t -> item { CardBox(padding = 8.dp) { TrackMap(t, Tracks.zonesFor(t.name)); Box(Modifier.padding(6.dp)) { TrackLegend(Tracks.zonesFor(t.name) != null, t.exactSectors) } } } }
+                    track?.let { t -> item { LiveMapCard(t, settings.liveMapCollapsed) } }
                     item {
                         CardBox(padding = 0.dp) {
                             TowerHeader()
@@ -207,11 +214,39 @@ private fun LiveHeader(v: LiveView) {
                 color = p.text
             )
         }
-        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // the flag gets its own line between the title and the lap count, so the source fits on one line
+        Box(Modifier.padding(top = 8.dp)) { FlagPill(v.trackStatus) }
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (v.lap != null) Mono(stringResource(R.string.lap_of, v.lap, v.totalLaps ?: 0), 13.sp, FontWeight.Bold)
             else if (v.remaining != null) Mono(v.remaining, 13.sp, FontWeight.Bold)
-            FlagPill(v.trackStatus)
             Muted(stringResource(R.string.live_source_f1), 10.sp)
+        }
+    }
+}
+
+/** Track map that can be folded down to a single line; the choice is remembered. */
+@Composable
+private fun LiveMapCard(t: TrackGeometry, collapsed: Boolean) {
+    val p = pal()
+    val scope = rememberCoroutineScope()
+    CardBox(padding = 8.dp) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .clickable { scope.launch { Repo.settings.edit { it[Keys.liveMapCollapsed] = !collapsed } } }
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(stringResource(R.string.circuit), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.muted, modifier = Modifier.weight(1f))
+            Icon(
+                if (collapsed) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp,
+                contentDescription = stringResource(if (collapsed) R.string.expand else R.string.collapse), tint = p.muted
+            )
+        }
+        AnimatedVisibility(visible = !collapsed) {
+            Column {
+                TrackMap(t, Tracks.zonesFor(t.name))
+                Box(Modifier.padding(6.dp)) { TrackLegend(Tracks.zonesFor(t.name) != null, t.exactSectors) }
+            }
         }
     }
 }
