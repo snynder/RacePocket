@@ -347,9 +347,12 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                         live != null -> item { LiveBanner(live.first, live.second, dot, over) { nav.navigate(Routes.LIVE) } }
                     }
 
-                    // from the day of its first practice the weekend's race leaves this list (it is in the cards below)
+                    // from the Monday of race week the weekend's race leaves this list (it is in the cards below)
                     val today = now.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    val upcoming = data.races.filter { !it.isFinished(now) && today.isBefore(it.firstDay) }.take(8)
+                    val upcoming = data.races.filter {
+                        val raceWeek = it.firstDay.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+                        !it.isFinished(now) && today.isBefore(raceWeek)
+                    }.take(8)
                     if (upcoming.isNotEmpty()) {
                         item { SectionTitle(stringResource(R.string.upcoming), stringResource(R.string.calendar), onAction = { nav.goTab(Routes.SEASON) }) }
                         item {
