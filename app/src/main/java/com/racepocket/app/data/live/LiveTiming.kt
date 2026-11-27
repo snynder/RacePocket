@@ -222,8 +222,14 @@ class LiveTimingClient(private val scope: CoroutineScope) {
             }
         }
 
+        // The server ended the socket: answer the close so onClosed runs and we reconnect.
+        // Without this the socket stays half-open and the screen silently stops updating.
+        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            webSocket.close(1000, null)
+        }
+
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            if (!closedByUser && opened) scope.launch { delay(3000); if (!closedByUser) open() }
+            if (!closedByUser && opened && webSocket === ws) scope.launch { delay(3000); if (!closedByUser) open() }
         }
     }
 }
@@ -258,6 +264,10 @@ data class LiveView(
     val lap: Int? = null,
     val totalLaps: Int? = null,
     val remaining: String? = null,
+    /** When the feed took the [remaining] reading; with [clockRunning] the app counts down from there. */
+    val clockUtc: java.time.Instant? = null,
+    /** ExtrapolatedClock.Extrapolating: the clock is running and F1 only resends it when it stops or jumps. */
+    val clockRunning: Boolean = false,
     val trackStatus: String = "",
     val rows: List<TowerRow> = emptyList(),
     val messages: List<RaceMsg> = emptyList(),
@@ -353,6 +363,8 @@ object LiveParser {
             lap = t["LapCount"].child("CurrentLap").int(),
             totalLaps = t["LapCount"].child("TotalLaps").int(),
             remaining = t["ExtrapolatedClock"].child("Remaining").str(),
+            clockUtc = parseInstant(t["ExtrapolatedClock"].child("Utc").str()),
+            clockRunning = t["ExtrapolatedClock"].child("Extrapolating").bool(),
             trackStatus = t["TrackStatus"].child("Status").str() ?: "",
             rows = rows,
             messages = msgs,

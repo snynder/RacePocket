@@ -32,29 +32,34 @@ fun TowerHeader() {
     fun H(text: String, mod: Modifier, align: TextAlign) =
         Text(text, fontSize = 10.sp, color = m, modifier = mod, textAlign = align, maxLines = 1, softWrap = false)
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        H(stringResource(R.string.pos_short), Modifier.width(22.dp), TextAlign.End)
-        Box(Modifier.width(13.dp))
+        H(stringResource(R.string.pos_short), Modifier.width(POS_W), TextAlign.Center)
+        Box(Modifier.width(BAR_W))
         H(stringResource(R.string.driver), Modifier.width(DRIVER_W), TextAlign.Start)
         H(stringResource(R.string.gap_interval), Modifier.weight(1f), TextAlign.End)
         H(stringResource(R.string.last_best), Modifier.width(84.dp), TextAlign.End)
-        H(stringResource(R.string.tyre), Modifier.width(TYRE_W), TextAlign.Center)
+        H(stringResource(R.string.tyre), Modifier.padding(start = TYRE_GAP).width(TYRE_W), TextAlign.Center)
         H(stringResource(R.string.tyre_laps), Modifier.width(LAPS_W), TextAlign.Center)
         H(stringResource(R.string.stops_short), Modifier.width(STOPS_W), TextAlign.End)
     }
 }
 
-private val DRIVER_W = 54.dp
-private val TYRE_W = 38.dp
-private val LAPS_W = 40.dp
-private val STOPS_W = 24.dp
+private val POS_W = 24.dp
+private val BAR_W = 10.dp
+// wide enough for the long surnames (VERSTAPPEN, HULKENBERG, BORTOLETO) at 10sp
+private val DRIVER_W = 76.dp
+/** Space between Last/Best and the tyre badge, so the two do not look glued together. */
+private val TYRE_GAP = 6.dp
+private val TYRE_W = 30.dp
+private val LAPS_W = 32.dp // fits "Voltas" in the header
+private val STOPS_W = 22.dp
 
 @Composable
 fun TowerLine(r: TowerRow) {
     val p = pal()
     Divider()
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("${r.position}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (r.out) p.muted else p.text, modifier = Modifier.width(22.dp), textAlign = TextAlign.End)
-        Box(Modifier.width(13.dp), contentAlignment = Alignment.Center) { TeamBar(hexColor(r.teamColor), 24.dp) }
+        Text("${r.position}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (r.out) p.muted else p.text, modifier = Modifier.width(POS_W), textAlign = TextAlign.Center)
+        Box(Modifier.width(BAR_W), contentAlignment = Alignment.Center) { TeamBar(hexColor(r.teamColor), 24.dp) }
         // a surname that does not fit is never cut: the row keeps only the three-letter code,
         // which then sits alone, centred on the team colour bar
         val tag = when {
@@ -74,7 +79,7 @@ fun TowerLine(r: TowerRow) {
             Mono(r.last.ifBlank { "—" }, 12.sp, FontWeight.Normal, if (r.lastPersonalBest) p.green else p.text)
             Mono(r.best.ifBlank { "—" }, 10.sp, FontWeight.Normal, if (r.bestOverall) p.purple else p.muted)
         }
-        Box(Modifier.width(TYRE_W), contentAlignment = Alignment.Center) { TyreBadge(r.compound, null) }
+        Box(Modifier.padding(start = TYRE_GAP).width(TYRE_W), contentAlignment = Alignment.Center) { TyreBadge(r.compound, null) }
         Text(r.tyreAge?.toString() ?: "", fontSize = 12.sp, color = p.text, modifier = Modifier.width(LAPS_W), textAlign = TextAlign.Center, maxLines = 1)
         Text(r.stops?.toString() ?: "", fontSize = 12.sp, color = p.text, modifier = Modifier.width(STOPS_W), textAlign = TextAlign.End)
     }

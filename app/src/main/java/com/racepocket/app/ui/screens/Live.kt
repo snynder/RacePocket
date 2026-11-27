@@ -30,6 +30,10 @@ import com.racepocket.app.ui.PullRefresh
 import com.racepocket.app.ui.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -218,10 +222,33 @@ private fun LiveHeader(v: LiveView) {
         Box(Modifier.padding(top = 8.dp)) { FlagPill(v.trackStatus) }
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (v.lap != null) Mono(stringResource(R.string.lap_of, v.lap, v.totalLaps ?: 0), 13.sp, FontWeight.Bold)
-            else if (v.remaining != null) Mono(v.remaining, 13.sp, FontWeight.Bold)
+            else sessionClock(v)?.let { Mono(it, 13.sp, FontWeight.Bold) }
             Muted(stringResource(R.string.live_source_f1), 10.sp)
         }
     }
+}
+
+/**
+ * Time left in the session. F1 sends Remaining only when the clock starts, stops or jumps, with
+ * Extrapolating = true while it runs, so the countdown between those readings is done here.
+ */
+@Composable
+private fun sessionClock(v: LiveView): String? {
+    var now by remember { mutableStateOf(Instant.now()) }
+    LaunchedEffect(v.clockRunning, v.clockUtc) {
+        if (!v.clockRunning) return@LaunchedEffect
+        while (true) {
+            now = Instant.now()
+            delay(1000)
+        }
+    }
+    val base = v.remaining ?: return null
+    val parts = base.split(":").map { it.toLongOrNull() ?: return base }
+    if (parts.size != 3) return base
+    val utc = v.clockUtc
+    if (!v.clockRunning || utc == null) return base
+    val left = (parts[0] * 3600 + parts[1] * 60 + parts[2] - java.time.Duration.between(utc, now).seconds).coerceAtLeast(0)
+    return "%02d:%02d:%02d".format(left / 3600, left % 3600 / 60, left % 60)
 }
 
 /** Track map that can be folded down to a single line; the choice is remembered. */
