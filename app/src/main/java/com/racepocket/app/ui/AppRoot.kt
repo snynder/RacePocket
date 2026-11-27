@@ -1,5 +1,13 @@
 package com.racepocket.app.ui
 
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.DonutLarge
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Star
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +47,7 @@ import com.racepocket.app.ui.screens.CompareScreen
 import com.racepocket.app.ui.screens.HomeScreen
 import com.racepocket.app.ui.screens.LiveScreen
 import com.racepocket.app.ui.screens.MoreScreen
+import com.racepocket.app.ui.screens.NotificationsScreen
 import com.racepocket.app.ui.screens.RaceScreen
 import com.racepocket.app.ui.screens.RadioScreen
 import com.racepocket.app.ui.screens.RecordsScreen
@@ -65,31 +74,54 @@ object Routes {
     const val SIMULATION = "simulation"
     const val COMPARE = "compare"
     const val RECORDS = "records"
+    const val NOTIFICATIONS = "notifications"
     fun circuit(id: String, year: Int? = null, round: Int? = null) = "circuit/$id?year=${year ?: -1}&round=${round ?: -1}"
     /** Replay opened on the session that started at [at] (matched by start time); without it, the latest one. */
     fun replay(at: java.time.Instant) = "$REPLAY?at=${at.epochSecond}"
     fun race(year: Int, round: Int, tab: Int? = null) = "race/$year/$round" + (tab?.let { "?tab=$it" } ?: "")
 }
 
-private data class Tab(val route: String, val label: Int, val icon: ImageVector)
-
-private val TABS = listOf(
-    Tab(Routes.HOME, R.string.nav_home, Icons.Filled.Home),
-    Tab(Routes.STANDINGS, R.string.nav_standings, Icons.Filled.EmojiEvents),
-    Tab(Routes.SEASON, R.string.nav_season, Icons.Filled.CalendarMonth),
-    Tab(Routes.CIRCUITS, R.string.nav_circuits, Icons.Filled.Map),
-    Tab(Routes.MORE, R.string.nav_more, Icons.Filled.Menu)
+/**
+ * A section of the app that can sit in the bottom bar (between Home and More, which are fixed) or, when it
+ * is not there, in the More menu. [tabLabel] is the short name for the bar; [owns] tells which screens belong to it.
+ */
+class NavDest(
+    val route: String, val label: Int, val tabLabel: Int, val sub: Int, val icon: ImageVector,
+    val owns: (String) -> Boolean = { it == route }
 )
 
-/** Which bottom tab a screen belongs to. */
-private fun tabOf(route: String?): String = when {
-    route == null -> Routes.HOME
-    route.startsWith(Routes.STANDINGS) -> Routes.STANDINGS
-    route.startsWith(Routes.SEASON) || route.startsWith("race/") -> Routes.SEASON
-    route.startsWith(Routes.CIRCUITS) || route.startsWith("circuit/") -> Routes.CIRCUITS
-    route in listOf(Routes.MORE, Routes.SETTINGS, Routes.RADIO, Routes.TELEMETRY, Routes.STRATEGY, Routes.SIMULATION, Routes.COMPARE, Routes.RECORDS) -> Routes.MORE
-    else -> Routes.HOME
+val NAV_DESTS = listOf(
+    NavDest(Routes.STANDINGS, R.string.nav_standings, R.string.nav_standings, R.string.standings_sub, Icons.Filled.EmojiEvents) { it.startsWith(Routes.STANDINGS) },
+    NavDest(Routes.SEASON, R.string.nav_season, R.string.nav_season, R.string.season_sub, Icons.Filled.CalendarMonth) { it.startsWith(Routes.SEASON) || it.startsWith("race/") },
+    NavDest(Routes.CIRCUITS, R.string.nav_circuits, R.string.nav_circuits, R.string.circuits_sub, Icons.Filled.Map) { it.startsWith(Routes.CIRCUITS) || it.startsWith("circuit/") },
+    NavDest(Routes.LIVE, R.string.live_title, R.string.live_title, R.string.live_sub, Icons.Filled.Sensors),
+    NavDest(Routes.REPLAY, R.string.replay_title, R.string.replay_title, R.string.replay_sub, Icons.Filled.History) { it.startsWith(Routes.REPLAY) },
+    NavDest(Routes.RADIO, R.string.nav_radio, R.string.tab_radio, R.string.radio_sub, Icons.Filled.Mic),
+    NavDest(Routes.TELEMETRY, R.string.nav_telemetry, R.string.nav_telemetry, R.string.telemetry_sub, Icons.Filled.Speed),
+    NavDest(Routes.STRATEGY, R.string.nav_strategy, R.string.nav_strategy, R.string.strategy_sub, Icons.Filled.DonutLarge),
+    NavDest(Routes.SIMULATION, R.string.nav_simulation, R.string.tab_sim, R.string.simulation_sub, Icons.Filled.Calculate),
+    NavDest(Routes.COMPARE, R.string.nav_compare, R.string.nav_compare, R.string.compare_sub, Icons.Filled.SwapHoriz),
+    NavDest(Routes.RECORDS, R.string.nav_records, R.string.nav_records, R.string.records_sub, Icons.Filled.Star)
+)
+
+/** Most shortcuts between Home and More: five items in all is the limit for a readable bar. */
+const val MAX_BAR = 3
+
+/** The person's bottom bar shortcuts, in order (unknown or repeated entries dropped). */
+fun barDests(s: AppSettings): List<NavDest> =
+    s.bottomBar.mapNotNull { k -> NAV_DESTS.firstOrNull { it.route == k } }.distinctBy { it.route }.take(MAX_BAR)
+
+/** Which bottom tab a screen belongs to: its own shortcut if it is in the bar, otherwise More (or Home for Live/Replay). */
+private fun tabOf(route: String?, bar: List<NavDest>): String {
+    if (route == null) return Routes.HOME
+    bar.firstOrNull { it.owns(route) }?.let { return it.route }
+    if (route == Routes.MORE || route == Routes.SETTINGS || route == Routes.NOTIFICATIONS) return Routes.MORE
+    val d = NAV_DESTS.firstOrNull { it.owns(route) } ?: return Routes.HOME
+    // Live and Replay are mostly reached from Home (banner, next race card)
+    return if (d.route == Routes.LIVE || d.route == Routes.REPLAY) Routes.HOME else Routes.MORE
 }
+
+private data class Tab(val route: String, val label: Int, val icon: ImageVector)
 
 /** Bottom bar: always opens the tab's main screen. Inside a tab (e.g. Replay under More), tapping it goes back to its menu. */
 /** Screen asked by a tapped notification; AppRoot opens it on top of Home. */
@@ -109,13 +141,17 @@ fun NavHostController.goTab(route: String) {
 fun AppRoot(settings: AppSettings) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
-    val current = tabOf(entry?.destination?.route)
+    val bar = barDests(settings)
+    val current = tabOf(entry?.destination?.route, bar)
+    val tabs = listOf(Tab(Routes.HOME, R.string.nav_home, Icons.Filled.Home)) +
+        bar.map { Tab(it.route, it.tabLabel, it.icon) } +
+        Tab(Routes.MORE, R.string.nav_more, Icons.Filled.Menu)
     val p = pal()
     Scaffold(
         containerColor = p.bg,
         bottomBar = {
             NavigationBar(containerColor = p.card) {
-                TABS.forEach { t ->
+                tabs.forEach { t ->
                     NavigationBarItem(
                         selected = current == t.route,
                         onClick = { nav.goTab(t.route) },
@@ -136,7 +172,8 @@ fun AppRoot(settings: AppSettings) {
                 composable(Routes.STANDINGS) { StandingsScreen(nav) }
                 composable(Routes.SEASON) { SeasonScreen(nav) }
                 composable(Routes.CIRCUITS) { CircuitsScreen(nav) }
-                composable(Routes.MORE) { MoreScreen(nav) }
+                composable(Routes.MORE) { MoreScreen(nav, settings) }
+                composable(Routes.NOTIFICATIONS) { NotificationsScreen(nav, settings) }
                 composable(Routes.LIVE) { LiveScreen(nav, settings) }
                 composable(
                     "${Routes.REPLAY}?at={at}",

@@ -308,4 +308,15 @@
     <string name="recent_laps">Recent laps</string>
     <string name="no_laps_yet">No completed laps yet</string>
     <string name="tower_legend">Gap: to the leader · Int: to the car ahead\nLast/Best: latest and best lap (green = personal best, purple = fastest of the session)\nTyre, laps on it and pit stops\nTap a driver for sectors, stints and laps. Tap here to close.</string>
+    <string name="standings_sub">Drivers and constructors</string>
+    <string name="season_sub">Calendar and winners</string>
+    <string name="circuits_sub">Maps and history of every track</string>
+    <string name="tab_radio">Radio</string>
+    <string name="tab_sim">Simulator</string>
+    <string name="explore">Explore</string>
+    <string name="notifications_sub">Session alerts and results</string>
+    <string name="bottom_bar_title">Bottom bar</string>
+    <string name="bottom_bar_note">Home and More stay at the ends. Pick up to %1$d shortcuts between them.</string>
+    <string name="bottom_bar_full">The bar is full (%1$d shortcuts). Remove one to add another.</string>
+    <string name="fixed">Fixed</string>
 </resources>

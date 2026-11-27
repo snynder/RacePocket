@@ -307,4 +307,15 @@
     <string name="recent_laps">Últimas vueltas</string>
     <string name="no_laps_yet">Aún no hay vueltas completas</string>
     <string name="tower_legend">Dif: al líder · Int: al coche de delante\nÚlt/Mejor: última y mejor vuelta (verde = mejor personal, morado = más rápida de la sesión)\nNeumático, vueltas con él y paradas\nToca un piloto para ver sectores, stints y vueltas. Toca aquí para cerrar.</string>
+    <string name="standings_sub">Pilotos y constructores</string>
+    <string name="season_sub">Calendario y ganadores</string>
+    <string name="circuits_sub">Mapas e historia de cada circuito</string>
+    <string name="tab_radio">Radio</string>
+    <string name="tab_sim">Simulador</string>
+    <string name="explore">Explorar</string>
+    <string name="notifications_sub">Alertas de las sesiones y resultados</string>
+    <string name="bottom_bar_title">Barra inferior</string>
+    <string name="bottom_bar_note">Inicio y Más quedan siempre en los extremos. Elige hasta %1$d atajos entre ellos.</string>
+    <string name="bottom_bar_full">La barra está llena (%1$d atajos). Quita uno para añadir otro.</string>
+    <string name="fixed">Fijo</string>
 </resources>

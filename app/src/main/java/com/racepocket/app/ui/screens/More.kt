@@ -1,5 +1,18 @@
 package com.racepocket.app.ui.screens
 
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.IconButton
+import com.racepocket.app.ui.NAV_DESTS
+import com.racepocket.app.ui.MAX_BAR
+import com.racepocket.app.ui.barDests
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,35 +100,153 @@ import kotlinx.coroutines.launch
 // ===================== MORE =====================
 
 @Composable
-fun MoreScreen(nav: NavHostController) {
-    val items = listOf(
-        Triple(Icons.Filled.Sensors, R.string.live_title to R.string.live_sub, Routes.LIVE),
-        Triple(Icons.Filled.History, R.string.replay_title to R.string.replay_sub, Routes.REPLAY),
-        Triple(Icons.Filled.Mic, R.string.nav_radio to R.string.radio_sub, Routes.RADIO),
-        Triple(Icons.Filled.Speed, R.string.nav_telemetry to R.string.telemetry_sub, Routes.TELEMETRY),
-        Triple(Icons.Filled.DonutLarge, R.string.nav_strategy to R.string.strategy_sub, Routes.STRATEGY),
-        Triple(Icons.Filled.Calculate, R.string.nav_simulation to R.string.simulation_sub, Routes.SIMULATION),
-        Triple(Icons.Filled.SwapHoriz, R.string.nav_compare to R.string.compare_sub, Routes.COMPARE),
-        Triple(Icons.Filled.Star, R.string.nav_records to R.string.records_sub, Routes.RECORDS)
-    )
+fun MoreScreen(nav: NavHostController, settings: AppSettings) {
+    // every section that is not a bottom bar shortcut lives here
+    val inBar = barDests(settings).map { it.route }.toSet()
+    val items = NAV_DESTS.filter { it.route !in inBar }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ScreenHeader(stringResource(R.string.nav_more)) }
-        item { Muted(stringResource(R.string.analysis).uppercase(), 12.sp) }
-        item {
-            CardBox(padding = 0.dp) {
-                items.forEachIndexed { i, (icon, texts, route) ->
-                    if (i > 0) Divider()
-                    MenuRow(icon, stringResource(texts.first), stringResource(texts.second)) { nav.navigate(route) }
+        if (items.isNotEmpty()) {
+            item { Muted(stringResource(R.string.explore).uppercase(), 12.sp) }
+            item {
+                CardBox(padding = 0.dp) {
+                    items.forEachIndexed { i, d ->
+                        if (i > 0) Divider()
+                        MenuRow(d.icon, stringResource(d.label), stringResource(d.sub)) { nav.navigate(d.route) }
+                    }
                 }
             }
         }
         item { Muted(stringResource(R.string.app).uppercase(), 12.sp) }
         item {
             CardBox(padding = 0.dp) {
+                MenuRow(
+                    if (settings.notifEnabled || settings.resultsEnabled) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                    stringResource(R.string.notifications), stringResource(R.string.notifications_sub)
+                ) { nav.navigate(Routes.NOTIFICATIONS) }
+                Divider()
                 MenuRow(Icons.Filled.Settings, stringResource(R.string.settings), stringResource(R.string.settings_sub)) { nav.navigate(Routes.SETTINGS) }
             }
         }
         item { Muted(stringResource(R.string.disclaimer), 11.sp) }
+    }
+}
+
+// ===================== NOTIFICATIONS =====================
+
+/** Session alerts and result notices, reached from the bell on Home, from More and from Settings. */
+@Composable
+fun NotificationsScreen(nav: NavHostController, s: AppSettings) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit, reschedule: Boolean = false) {
+        scope.launch {
+            Repo.settings.edit(block)
+            if (reschedule) Notifier.rescheduleSoon(context)
+        }
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        edit({ it[Keys.notifEnabled] = granted }, true)
+    }
+    val resultsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        edit({ it[Keys.resultsEnabled] = granted }, true)
+    }
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { ScreenHeader(stringResource(R.string.notifications), onBack = { nav.popBackStack() }) }
+        item { Muted(stringResource(R.string.notifications).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                ToggleRow(stringResource(R.string.notif_enable), stringResource(R.string.notif_enable_sub), s.notifEnabled) { on ->
+                    if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    else edit({ it[Keys.notifEnabled] = on }, true)
+                }
+                if (s.notifEnabled) {
+                    Divider()
+                    SessionLevels(s.notif, Keys::notif) { b -> edit(b, true) }
+                    Divider()
+                    Box(Modifier.padding(14.dp)) {
+                        val leads = listOf(5, 15, 30, 60)
+                        Picker(stringResource(R.string.notif_lead), leads, s.leadMinutes, { stringResource0(it) }, Modifier.fillMaxWidth()) { m ->
+                            edit({ it[Keys.lead] = m }, true)
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Muted(stringResource(R.string.results_notif_title).uppercase(), 12.sp) }
+        item {
+            CardBox(padding = 0.dp) {
+                ToggleRow(stringResource(R.string.results_notif_enable), stringResource(R.string.results_notif_enable_sub), s.resultsEnabled) { on ->
+                    if (on && Build.VERSION.SDK_INT >= 33) resultsPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    else edit({ it[Keys.resultsEnabled] = on }, true)
+                }
+                if (s.resultsEnabled) {
+                    Divider()
+                    SessionLevels(s.results, Keys::results) { b -> edit(b, true) }
+                }
+            }
+        }
+
+    }
+}
+
+// ===================== BOTTOM BAR =====================
+
+/** Home and More are fixed at the ends; up to [MAX_BAR] shortcuts in between, added, removed and reordered here. */
+@Composable
+private fun BottomBarEditor(s: AppSettings, save: (List<String>) -> Unit) {
+    val p = pal()
+    val chosen = barDests(s)
+    val keys = chosen.map { it.route }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CardBox(padding = 0.dp) {
+            FixedBarRow(Icons.Filled.Home, stringResource(R.string.nav_home))
+            chosen.forEachIndexed { i, d ->
+                Divider()
+                Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(d.icon, contentDescription = null, tint = p.accentText, modifier = Modifier.size(20.dp))
+                    Text(stringResource(d.label), fontSize = 14.sp, color = p.text, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                    IconButton(onClick = { save(keys.toMutableList().apply { add(i - 1, removeAt(i)) }) }, enabled = i > 0) {
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = null, tint = if (i > 0) p.text else p.divider)
+                    }
+                    IconButton(onClick = { save(keys.toMutableList().apply { add(i + 1, removeAt(i)) }) }, enabled = i < chosen.size - 1) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = if (i < chosen.size - 1) p.text else p.divider)
+                    }
+                    IconButton(onClick = { save(keys - d.route) }) {
+                        Icon(Icons.Filled.Close, contentDescription = null, tint = p.muted)
+                    }
+                }
+            }
+            Divider()
+            FixedBarRow(Icons.Filled.Menu, stringResource(R.string.nav_more))
+        }
+        val full = chosen.size >= MAX_BAR
+        Muted(stringResource(if (full) R.string.bottom_bar_full else R.string.bottom_bar_note, MAX_BAR), 11.sp)
+        CardBox(padding = 0.dp) {
+            NAV_DESTS.filter { it.route !in keys }.forEachIndexed { i, d ->
+                if (i > 0) Divider()
+                Row(
+                    Modifier.fillMaxWidth().clickable(enabled = !full) { save(keys + d.route) }.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(d.icon, contentDescription = null, tint = if (full) p.muted else p.accentText, modifier = Modifier.size(20.dp))
+                    Text(stringResource(d.label), fontSize = 14.sp, color = if (full) p.muted else p.text, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = if (full) p.divider else p.accentText)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FixedBarRow(icon: ImageVector, label: String) {
+    val p = pal()
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = p.muted, modifier = Modifier.size(20.dp))
+        Text(label, fontSize = 14.sp, color = p.muted, modifier = Modifier.weight(1f).padding(start = 12.dp))
+        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.fixed), tint = p.muted, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -154,12 +285,6 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
             Repo.settings.edit(block)
             if (reschedule) Notifier.rescheduleSoon(context)
         }
-    }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        edit({ it[Keys.notifEnabled] = granted }, true)
-    }
-    val resultsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        edit({ it[Keys.resultsEnabled] = granted }, true)
     }
     var transcripts by remember { mutableStateOf(s.transcriptsUrl) }
     var whisper by remember { mutableStateOf(s.whisperKey) }
@@ -216,37 +341,15 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
         item { Muted(stringResource(R.string.notifications).uppercase(), 12.sp) }
         item {
             CardBox(padding = 0.dp) {
-                ToggleRow(stringResource(R.string.notif_enable), stringResource(R.string.notif_enable_sub), s.notifEnabled) { on ->
-                    if (on && Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    else edit({ it[Keys.notifEnabled] = on }, true)
-                }
-                if (s.notifEnabled) {
-                    Divider()
-                    SessionLevels(s.notif, Keys::notif) { b -> edit(b, true) }
-                    Divider()
-                    Box(Modifier.padding(14.dp)) {
-                        val leads = listOf(5, 15, 30, 60)
-                        Picker(stringResource(R.string.notif_lead), leads, s.leadMinutes, { stringResource0(it) }, Modifier.fillMaxWidth()) { m ->
-                            edit({ it[Keys.lead] = m }, true)
-                        }
-                    }
-                }
+                MenuRow(
+                    if (s.notifEnabled || s.resultsEnabled) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                    stringResource(R.string.notifications), stringResource(R.string.notifications_sub)
+                ) { nav.navigate(Routes.NOTIFICATIONS) }
             }
         }
 
-        item { Muted(stringResource(R.string.results_notif_title).uppercase(), 12.sp) }
-        item {
-            CardBox(padding = 0.dp) {
-                ToggleRow(stringResource(R.string.results_notif_enable), stringResource(R.string.results_notif_enable_sub), s.resultsEnabled) { on ->
-                    if (on && Build.VERSION.SDK_INT >= 33) resultsPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    else edit({ it[Keys.resultsEnabled] = on }, true)
-                }
-                if (s.resultsEnabled) {
-                    Divider()
-                    SessionLevels(s.results, Keys::results) { b -> edit(b, true) }
-                }
-            }
-        }
+        item { Muted(stringResource(R.string.bottom_bar_title).uppercase(), 12.sp) }
+        item { BottomBarEditor(s) { list -> edit({ it[Keys.bottomBar] = list.joinToString(",") }) } }
 
         item { Muted(stringResource(R.string.banner_title).uppercase(), 12.sp) }
         item {

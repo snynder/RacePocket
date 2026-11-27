@@ -29,7 +29,9 @@ data class AppSettings(
     val whisperKey: String = "",
     val uppercase: Boolean = true,
     val updateRepo: String = "",
-    val liveMapCollapsed: Boolean = false
+    val liveMapCollapsed: Boolean = false,
+    /** Routes of the bottom bar shortcuts between Home and More (up to 3, in order). */
+    val bottomBar: List<String> = listOf("standings", "season", "circuits")
 ) {
     val effectiveCountry: String get() = country ?: Static.deviceCountry()
 }
@@ -46,6 +48,7 @@ object Keys {
     val liveMapCollapsed = booleanPreferencesKey("live_map_collapsed")
     /** The first-launch notification question was handled (asked, or skipped for an update). */
     val onboarded = booleanPreferencesKey("onboarded")
+    val bottomBar = stringPreferencesKey("bottom_bar")
     fun notif(k: SessionKind) = booleanPreferencesKey("notif_" + k.name)
     fun banner(k: SessionKind) = booleanPreferencesKey("banner_" + k.name)
     val resultsEnabled = booleanPreferencesKey("results_enabled")
@@ -74,7 +77,8 @@ class SettingsRepo(private val context: Context) {
             whisperKey = p[Keys.whisper] ?: d.whisperKey,
             uppercase = p[Keys.uppercase] ?: d.uppercase,
             updateRepo = p[Keys.updateRepo] ?: d.updateRepo,
-            liveMapCollapsed = p[Keys.liveMapCollapsed] ?: d.liveMapCollapsed
+            liveMapCollapsed = p[Keys.liveMapCollapsed] ?: d.liveMapCollapsed,
+            bottomBar = p[Keys.bottomBar]?.split(',')?.filter { it.isNotBlank() } ?: d.bottomBar
         )
     }
 

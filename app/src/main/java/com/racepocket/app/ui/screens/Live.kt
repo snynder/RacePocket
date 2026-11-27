@@ -213,14 +213,13 @@ fun LiveScreen(nav: NavHostController, settings: AppSettings) {
                 !v.hasTiming -> item { NoSessionCard(calendar) { nav.navigate(Routes.REPLAY) } }
                 else -> {
                     item { LiveHeader(v) }
-                    // the timing is what people come for: it goes first, the map below it
+                    track?.let { t -> item { LiveMapCard(t, settings.liveMapCollapsed) } }
                     item {
                         CardBox(padding = 0.dp) {
                             TowerHeader()
                             v.rows.forEach { r -> TowerLine(r) { selected = r.number } }
                         }
                     }
-                    track?.let { t -> item { LiveMapCard(t, settings.liveMapCollapsed) } }
                     item { RaceControlList(v.messages) }
                     item { OutlinedButton(onClick = { nav.navigate(Routes.REPLAY) }) { Text(stringResource(R.string.open_replay)) } }
                 }

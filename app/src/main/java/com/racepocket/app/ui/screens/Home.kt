@@ -1,5 +1,7 @@
 package com.racepocket.app.ui.screens
 
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.animation.core.RepeatMode
@@ -318,6 +320,12 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                         },
                         fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = p.text, modifier = Modifier.weight(1f)
                     )
+                    IconButton(onClick = { nav.navigate(Routes.NOTIFICATIONS) }) {
+                        Icon(
+                            if (settings.notifEnabled || settings.resultsEnabled) Icons.Filled.Notifications else Icons.Filled.NotificationsOff,
+                            contentDescription = stringResource(R.string.notifications), tint = p.muted
+                        )
+                    }
                     IconButton(onClick = { nav.navigate(Routes.SETTINGS) }) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings), tint = p.muted)
                     }
@@ -522,19 +530,25 @@ private fun NextRaceCard(
     // the latest finished session of the weekend: the Results button opens it (hidden until FP1 ends)
     val lastDone = next.sessions.lastOrNull { isDone(it) }
     CardBox(padding = 0.dp) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.align(Alignment.CenterVertically)) { Flag(next.flag, 34.sp) }
-            Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
-                Text(stringResource(R.string.next_race_round, next.round).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText)
-                Text(Fmt.raceName(next.name), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Flag(next.flag, 34.sp)
+            Column(Modifier.weight(1f)) {
+                // only the round and the name share their space with the Results button:
+                // the circuit line below gets the full width, so it does not wrap
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.next_race_round, next.round).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText)
+                        Text(Fmt.raceName(next.name), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+                    }
+                    if (lastDone != null) {
+                        Text(
+                            stringResource(R.string.results), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.accentText, maxLines = 1, softWrap = false,
+                            modifier = Modifier.padding(start = 8.dp).minimumInteractiveComponentSize().clip(RoundedCornerShape(8.dp)).clickable { onSession(lastDone, true) }
+                                .background(p.card2).padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
                 Muted("${next.circuitName} · ${next.locality}", 12.sp)
-            }
-            if (lastDone != null) {
-                Text(
-                    stringResource(R.string.results), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.accentText, maxLines = 1, softWrap = false,
-                    modifier = Modifier.minimumInteractiveComponentSize().clip(RoundedCornerShape(8.dp)).clickable { onSession(lastDone, true) }
-                        .background(p.card2).padding(horizontal = 10.dp, vertical = 6.dp)
-                )
             }
         }
         next.raceStart?.let { start ->
