@@ -363,13 +363,16 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                         !it.isFinished(now) && today.isBefore(raceWeek)
                     }.take(8)
                     if (upcoming.isNotEmpty()) {
-                        item { SectionTitle(stringResource(R.string.upcoming), stringResource(R.string.calendar), onAction = { nav.goTab(Routes.SEASON) }) }
+                        // title and cards in one item: the list's 16dp gap made them look unrelated
                         item {
+                          Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SectionTitle(stringResource(R.string.upcoming), stringResource(R.string.calendar), onAction = { nav.goTab(Routes.SEASON) })
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 items(upcoming, key = { "${it.season}-${it.round}" }) { r ->
                                     UpcomingCard(r, r == data.next) { nav.navigate(Routes.circuit(r.circuitId, r.season, r.round)) }
                                 }
                             }
+                          }
                         }
                     }
 
@@ -388,9 +391,11 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
                         item { LastRaceCard(last, data.lastResults, photos) { nav.navigate(Routes.race(last.season, last.round)) } }
                     }
 
-                    item { SectionTitle(stringResource(R.string.season_numbers, data.year)) }
                     item {
-                        LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionTitle(stringResource(R.string.season_numbers, data.year))
+                            LoadBox(leaders, onRetry = { vm.refresh() }) { l -> LeadersGrid(l) }
+                        }
                     }
 
                     if (data.drivers.isNotEmpty()) item {
@@ -530,25 +535,26 @@ private fun NextRaceCard(
     // the latest finished session of the weekend: the Results button opens it (hidden until FP1 ends)
     val lastDone = next.sessions.lastOrNull { isDone(it) }
     CardBox(padding = 0.dp) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Flag(next.flag, 34.sp)
-            Column(Modifier.weight(1f)) {
-                // only the round and the name share their space with the Results button:
-                // the circuit line below gets the full width, so it does not wrap
-                Row(verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.next_race_round, next.round).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText)
-                        Text(Fmt.raceName(next.name), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-                    }
-                    if (lastDone != null) {
-                        Text(
-                            stringResource(R.string.results), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.accentText, maxLines = 1, softWrap = false,
-                            modifier = Modifier.padding(start = 8.dp).minimumInteractiveComponentSize().clip(RoundedCornerShape(8.dp)).clickable { onSession(lastDone, true) }
-                                .background(p.card2).padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
+        // round label and circuit line start at the card edge, aligned with the flag; the Results button
+        // sits in the top corner, over the space the short round label leaves free
+        Box(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text(
+                    stringResource(R.string.next_race_round, next.round).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText,
+                    modifier = Modifier.padding(end = if (lastDone != null) 96.dp else 0.dp)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Flag(next.flag, 24.sp)
+                    Text(Fmt.raceName(next.name), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
                 }
                 Muted("${next.circuitName} · ${next.locality}", 12.sp)
+            }
+            if (lastDone != null) {
+                Text(
+                    stringResource(R.string.results), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText, maxLines = 1, softWrap = false,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 6.dp).clip(RoundedCornerShape(8.dp))
+                        .clickable { onSession(lastDone, true) }.background(p.card2).padding(horizontal = 10.dp, vertical = 5.dp)
+                )
             }
         }
         next.raceStart?.let { start ->
