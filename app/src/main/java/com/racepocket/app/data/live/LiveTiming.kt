@@ -253,6 +253,20 @@ data class TowerRow(
     val out: Boolean
 )
 
+/** What the driver sheet shows: the tower row plus sectors, tyre stints and recent laps. */
+data class DriverDetail(
+    val row: TowerRow,
+    /** S1..S3 of the latest lap; blank when not known yet. */
+    val lastSectors: List<String>,
+    val bestSectors: List<String>,
+    val stints: List<StintInfo>,
+    /** Newest first. */
+    val laps: List<LapInfo>
+)
+
+data class StintInfo(val compound: String?, val laps: Int?)
+data class LapInfo(val lap: Int, val time: String, val pit: Boolean = false)
+
 data class RaceMsg(val time: String, val lap: Int?, val text: String, val flag: String?)
 
 data class LiveView(
@@ -315,6 +329,19 @@ object LiveParser {
     }
 
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+
+    /** Sheet data for one driver; [history] is the lap times this phone saw (the feed only keeps the last one). */
+    fun detail(t: Map<String, JsonElement>, row: TowerRow, history: Map<Int, String>?): DriverDetail {
+        val line = t["TimingData"].child("Lines").fields()[row.number]
+        return DriverDetail(
+            row = row,
+            lastSectors = line.child("Sectors").items().map { it.child("Value").str().orEmpty() },
+            bestSectors = t["TimingStats"].child("Lines").fields()[row.number].child("BestSectors").items().map { it.child("Value").str().orEmpty() },
+            stints = t["TimingAppData"].child("Lines").fields()[row.number].child("Stints").items()
+                .map { StintInfo(it.child("Compound").str(), it.child("TotalLaps").int()) },
+            laps = history.orEmpty().entries.sortedByDescending { it.key }.map { LapInfo(it.key, it.value) }
+        )
+    }
 
     fun parse(t: Map<String, JsonElement>): LiveView {
         val info = t["SessionInfo"]

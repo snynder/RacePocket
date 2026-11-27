@@ -1,5 +1,11 @@
 package com.racepocket.app.ui.screens
 
+import androidx.compose.material.icons.filled.SkipPrevious
+import com.racepocket.app.data.child
+import com.racepocket.app.data.fields
+import com.racepocket.app.data.int
+import com.racepocket.app.data.path
+import com.racepocket.app.data.str
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -65,6 +71,10 @@ import com.racepocket.app.data.live.LiveTimingClient
 import com.racepocket.app.data.live.LiveView
 import com.racepocket.app.data.live.RaceMsg
 import com.racepocket.app.data.live.TowerRow
+import com.racepocket.app.data.live.DriverDetail
+import com.racepocket.app.data.live.LapInfo
+import com.racepocket.app.data.live.StintInfo
+import com.racepocket.app.ui.DriverSheet
 import com.racepocket.app.ui.BaseVM
 import com.racepocket.app.ui.CardBox
 import com.racepocket.app.ui.ErrorBox
@@ -120,8 +130,25 @@ class LiveVM : BaseVM() {
     private var trackFor: String? = null
     private var waitJob: Job? = null
 
+    /** Lap times seen while the screen was open, per car number: the feed itself only keeps the latest lap. */
+    private val lapHistory = HashMap<String, java.util.TreeMap<Int, String>>()
+    private val lastSeen = HashMap<String, String>()
+
+    private fun recordLaps(t: Map<String, kotlinx.serialization.json.JsonElement>) {
+        t["TimingData"].child("Lines").fields().forEach { (num, l) ->
+            val lap = l.child("NumberOfLaps").int() ?: return@forEach
+            val time = l.path("LastLapTime", "Value").str()?.takeIf { it.isNotBlank() } ?: return@forEach
+            if (lastSeen[num] == time) return@forEach
+            lastSeen[num] = time
+            lapHistory.getOrPut(num) { java.util.TreeMap() }[lap] = time
+        }
+    }
+
+    fun detail(row: TowerRow): DriverDetail = LiveParser.detail(client.data.value, row, lapHistory[row.number])
+
     init {
         viewModelScope.launch { calendar.value = runCatching { Jolpica.calendar(Year.now().value) }.getOrDefault(emptyList()) }
+        viewModelScope.launch { client.data.collect { recordLaps(it) } }
         viewModelScope.launch {
             view.collect { v ->
                 if (v.meeting.isNotBlank() && v.meeting != trackFor) {
@@ -139,7 +166,11 @@ class LiveVM : BaseVM() {
         waitJob = viewModelScope.launch { delay(9000); waited.value = true }
     }
 
-    fun stop() = client.disconnect()
+    fun stop() {
+        client.disconnect()
+        lapHistory.clear()
+        lastSeen.clear()
+    }
     fun retry() { stop(); start() }
 }
 
@@ -156,6 +187,8 @@ fun LiveScreen(nav: NavHostController, settings: AppSettings) {
     val waited by vm.waited.collectAsState()
     val calendar by vm.calendar.collectAsState()
     val p = pal()
+    var selected by remember { mutableStateOf<String?>(null) }
+    v.rows.firstOrNull { it.number == selected }?.let { row -> DriverSheet(vm.detail(row)) { selected = null } }
 
     PullRefresh(vm, { vm.retry() }) {
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -180,13 +213,14 @@ fun LiveScreen(nav: NavHostController, settings: AppSettings) {
                 !v.hasTiming -> item { NoSessionCard(calendar) { nav.navigate(Routes.REPLAY) } }
                 else -> {
                     item { LiveHeader(v) }
-                    track?.let { t -> item { LiveMapCard(t, settings.liveMapCollapsed) } }
+                    // the timing is what people come for: it goes first, the map below it
                     item {
                         CardBox(padding = 0.dp) {
                             TowerHeader()
-                            v.rows.forEach { TowerLine(it) }
+                            v.rows.forEach { r -> TowerLine(r) { selected = r.number } }
                         }
                     }
+                    track?.let { t -> item { LiveMapCard(t, settings.liveMapCollapsed) } }
                     item { RaceControlList(v.messages) }
                     item { OutlinedButton(onClick = { nav.navigate(Routes.REPLAY) }) { Text(stringResource(R.string.open_replay)) } }
                 }
@@ -221,8 +255,10 @@ private fun LiveHeader(v: LiveView) {
         // the flag gets its own line between the title and the lap count, so the source fits on one line
         Box(Modifier.padding(top = 8.dp)) { FlagPill(v.trackStatus) }
         Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // a race shows its laps and, when the feed has it, the time left too (it matters after a red flag)
+            val clock = sessionClock(v)
             if (v.lap != null) Mono(stringResource(R.string.lap_of, v.lap, v.totalLaps ?: 0), 13.sp, FontWeight.Bold)
-            else sessionClock(v)?.let { Mono(it, 13.sp, FontWeight.Bold) }
+            if (clock != null) Mono(clock, if (v.lap != null) 12.sp else 13.sp, if (v.lap != null) FontWeight.Normal else FontWeight.Bold, if (v.lap != null) p.muted else null)
             Muted(stringResource(R.string.live_source_f1), 10.sp)
         }
     }
@@ -309,6 +345,14 @@ private fun NoSessionCard(calendar: List<Race>, onReplay: () -> Unit) {
                     Muted(stringResource(R.string.next_session), 11.sp)
                     Text("${sessionName(next.second.kind)} · ${Fmt.raceName(next.first.name)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = p.text)
                     Mono(Fmt.weekdayTime(next.second.start), 12.sp, FontWeight.Normal, p.muted)
+                    var tick by remember { mutableStateOf(Instant.now()) }
+                    LaunchedEffect(next.second.start) { while (true) { tick = Instant.now(); delay(30_000) } }
+                    val left = java.time.Duration.between(tick, next.second.start).coerceAtLeast(java.time.Duration.ZERO)
+                    val txt = buildString {
+                        if (left.toDays() > 0) append("${left.toDays()}d ")
+                        append(String.format("%02dh %02dmin", left.toHours() % 24, left.toMinutes() % 60))
+                    }
+                    Text(stringResource(R.string.starts_in, txt), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.accentText, modifier = Modifier.padding(top = 2.dp))
                 }
             }
         }
@@ -328,6 +372,8 @@ class SessionSelector(private val scope: CoroutineScope, private val kinds: Set<
     var onSession: (OpenF1.Session) -> Unit = {}
     private var job: Job? = null
     private var meetingJob: Job? = null
+    /** OpenF1 is refusing free requests (around a live session), so the asked session cannot be found yet. */
+    val blocked = MutableStateFlow(false)
 
     fun start() { if (meetings.value !is Load.Ok) selectYear(year.value) }
 
@@ -346,13 +392,24 @@ class SessionSelector(private val scope: CoroutineScope, private val kinds: Set<
                 val ms = OpenF1.meetings(y).filter { (it.start ?: now).isBefore(now) }
                 meetings.value = Load.Ok(ms)
                 fun dist(s: OpenF1.Session) = s.start?.let { kotlin.math.abs(java.time.Duration.between(it, at).toMinutes()) } ?: Long.MAX_VALUE
-                val target = runCatching { OpenF1.sessionsOfYear(y) }.getOrDefault(emptyList())
-                    .minByOrNull { dist(it) }?.takeIf { dist(it) <= 180 }
+                val all = try {
+                    OpenF1.sessionsOfYear(y)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (e is com.racepocket.app.data.LiveWindowException) blocked.value = true
+                    emptyList()
+                }
+                val target = all.minByOrNull { dist(it) }?.takeIf { dist(it) <= 180 }
+                // a session that ended minutes ago and is not in the (cached) list: OpenF1 is still holding it back
+                if (target == null && java.time.Duration.between(at, now).toHours() < 3) blocked.value = true
+                if (blocked.value) return@launch
                 val m = target?.let { t -> ms.firstOrNull { it.key == t.meetingKey } } ?: ms.lastOrNull()
                 m?.let { selectMeeting(it, target?.key) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (e is com.racepocket.app.data.LiveWindowException) blocked.value = true
                 meetings.value = Load.Err(e)
             }
         }
@@ -487,6 +544,24 @@ class ReplayData(
         return Frame(rows, msgs, lap.coerceAtMost(totalLaps.coerceAtLeast(1)), t - start)
     }
 
+    /** Sheet data for one driver at replay time [t]. */
+    fun detail(t: Long, row: TowerRow): DriverDetail {
+        val n = row.number.toIntOrNull() ?: return DriverDetail(row, emptyList(), emptyList(), emptyList(), emptyList())
+        val done = laps[n].orEmpty().filter { l -> l.start != null && l.duration != null && l.start + (l.duration * 1000).toLong() <= t }.sortedBy { it.lap }
+        val last = done.lastOrNull()
+        fun sec(x: Double?) = x?.let { String.format(java.util.Locale.US, "%.3f", it) } ?: ""
+        val cur = (last?.lap ?: 0) + 1
+        return DriverDetail(
+            row = row,
+            lastSectors = last?.let { listOf(sec(it.s1), sec(it.s2), sec(it.s3)) } ?: emptyList(),
+            bestSectors = listOf(done.mapNotNull { it.s1 }.minOrNull(), done.mapNotNull { it.s2 }.minOrNull(), done.mapNotNull { it.s3 }.minOrNull()).map { sec(it) },
+            stints = stints[n].orEmpty().filter { it.lapStart <= cur }.map {
+                StintInfo(it.compound, it.ageAtStart + (minOf(it.lapEnd, cur - 1) - it.lapStart + 1).coerceAtLeast(0))
+            },
+            laps = done.reversed().map { LapInfo(it.lap, fmtLap(it.duration), it.pitOut) }
+        )
+    }
+
     companion object {
         suspend fun load(s: OpenF1.Session): ReplayData = coroutineScope {
             val isRace = s.type == "Race"
@@ -574,11 +649,25 @@ fun ReplayScreen(nav: NavHostController, at: Instant? = null) {
     val time by vm.time.collectAsState()
     val playing by vm.playing.collectAsState()
     val speed by vm.speed.collectAsState()
+    val blocked by vm.sel.blocked.collectAsState()
     val p = pal()
+    var selected by remember { mutableStateOf<String?>(null) }
+    val okData = (data as? Load.Ok<ReplayData>)?.value
+    frame?.rows?.firstOrNull { it.number == selected }?.let { row ->
+        if (okData != null) DriverSheet(okData.detail(time, row)) { selected = null }
+    }
+    val windowErr = blocked || (data as? Load.Err)?.error is com.racepocket.app.data.LiveWindowException
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ScreenHeader(stringResource(R.string.replay_title), onBack = { nav.popBackStack() }) }
         item { SessionSelectorView(vm.sel) { vm.sel.selectYear(vm.sel.year.value) } }
-        when (val d = data) {
+        // right after a session OpenF1 still holds the data back: point to Live, which keeps the final classification
+        if (windowErr) item {
+            CardBox {
+                Text(stringResource(R.string.replay_live_window), color = p.text, fontSize = 13.sp)
+                OutlinedButton(onClick = { nav.navigate(Routes.LIVE) }, modifier = Modifier.padding(top = 10.dp)) { Text(stringResource(R.string.open_live)) }
+            }
+        }
+        if (!windowErr) when (val d = data) {
             is Load.Loading -> item { LoadingBox() }
             is Load.Err -> item { ErrorBox(d.error, null) }
             is Load.Ok -> {
@@ -596,6 +685,10 @@ fun ReplayScreen(nav: NavHostController, at: Instant? = null) {
                             colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = p.accent, inactiveTrackColor = p.card2)
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Replay opens on the final result; this goes back to the start to watch it unfold
+                            androidx.compose.material3.IconButton(onClick = { vm.seek(0f) }) {
+                                Icon(androidx.compose.material.icons.Icons.Filled.SkipPrevious, contentDescription = stringResource(R.string.from_start), tint = p.text)
+                            }
                             FilledIconButton(onClick = { vm.toggle() }, colors = IconButtonDefaults.filledIconButtonColors(containerColor = p.accent)) {
                                 Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = stringResource(if (playing) R.string.pause else R.string.play), tint = Color.White)
                             }
@@ -608,7 +701,7 @@ fun ReplayScreen(nav: NavHostController, at: Instant? = null) {
                     item {
                         CardBox(padding = 0.dp) {
                             TowerHeader()
-                            f.rows.forEach { TowerLine(it) }
+                            f.rows.forEach { r -> TowerLine(r) { selected = r.number } }
                         }
                     }
                     item { RaceControlList(f.messages, 30) }

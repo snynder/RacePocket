@@ -212,7 +212,9 @@ fun SeasonScreen(nav: NavHostController) {
                                 val w = winners[r.round]
                                 Row(
                                     Modifier.fillMaxWidth().background(if (r.round == nextRound) p.liveBg else p.card)
-                                        .clickable { nav.navigate(Routes.circuit(r.circuitId, r.season, r.round)) }.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        // a race already run opens its result; one still to come, its circuit page
+                                        .clickable { nav.navigate(if (r.isFinished(now)) Routes.race(r.season, r.round) else Routes.circuit(r.circuitId, r.season, r.round)) }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     Mono(String.format("%02d", r.round), 11.sp, FontWeight.Normal, p.muted)

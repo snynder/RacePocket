@@ -1,5 +1,6 @@
 package com.racepocket.app.ui
 
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -174,6 +175,7 @@ fun AppRoot(settings: AppSettings) {
                     RaceScreen(nav, e.arguments?.getInt("year") ?: 0, e.arguments?.getInt("round") ?: 0, settings, e.arguments?.getInt("tab") ?: 0)
                 }
             }
+            FirstRunNotifications()
             // a tapped notification: open its screen over Home, so back returns to Home
             val pending by DeepLink.route.collectAsState()
             LaunchedEffect(pending) {
@@ -187,5 +189,45 @@ fun AppRoot(settings: AppSettings) {
                 }
             }
         }
+    }
+}
+
+/**
+ * First launch after a fresh install: ask for the notification permission and, if granted, turn on every
+ * session alert and result notice; the person turns off what they do not want. An update never asks again
+ * and never touches what was already chosen.
+ */
+@Composable
+private fun FirstRunNotifications() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    fun finish(granted: Boolean) {
+        scope.launch {
+            com.racepocket.app.data.Repo.settings.edit { p ->
+                p[com.racepocket.app.data.Keys.onboarded] = true
+                if (granted) {
+                    p[com.racepocket.app.data.Keys.notifEnabled] = true
+                    p[com.racepocket.app.data.Keys.resultsEnabled] = true
+                    com.racepocket.app.data.SessionKind.entries.forEach {
+                        p[com.racepocket.app.data.Keys.notif(it)] = true
+                        p[com.racepocket.app.data.Keys.results(it)] = true
+                    }
+                }
+            }
+            if (granted) com.racepocket.app.notify.Notifier.rescheduleSoon(context)
+        }
+    }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { finish(it) }
+    LaunchedEffect(Unit) {
+        if (com.racepocket.app.data.Repo.settings.onboarded()) return@LaunchedEffect
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        if (info.firstInstallTime != info.lastUpdateTime) {
+            // an update of an app already in use: keep every choice as it is
+            com.racepocket.app.data.Repo.settings.edit { it[com.racepocket.app.data.Keys.onboarded] = true }
+            return@LaunchedEffect
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 33) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS) else finish(true)
     }
 }

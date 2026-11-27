@@ -295,4 +295,17 @@
     <string name="results_notif_text">Result: %1$s</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
+    <string name="starts_in">Starts in %1$s</string>
+    <string name="replay_live_window">OpenF1 releases session data about 30 minutes after each live session. If the session has just ended, its final classification is on the Live screen.</string>
+    <string name="open_live">Open Live</string>
+    <string name="from_start">From the start</string>
+    <string name="advanced">Advanced</string>
+    <string name="advanced_sub">Radio transcripts and update repository</string>
+    <string name="sectors">Sectors</string>
+    <string name="sectors_note">Latest lap on top, personal best below</string>
+    <string name="stints">Stints</string>
+    <string name="n_laps">%1$d laps</string>
+    <string name="recent_laps">Recent laps</string>
+    <string name="no_laps_yet">No completed laps yet</string>
+    <string name="tower_legend">Gap: to the leader · Int: to the car ahead\nLast/Best: latest and best lap (green = personal best, purple = fastest of the session)\nTyre, laps on it and pit stops\nTap a driver for sectors, stints and laps. Tap here to close.</string>
 </resources>

@@ -44,6 +44,8 @@ object Keys {
     val uppercase = booleanPreferencesKey("uppercase")
     val updateRepo = stringPreferencesKey("update_repo")
     val liveMapCollapsed = booleanPreferencesKey("live_map_collapsed")
+    /** The first-launch notification question was handled (asked, or skipped for an update). */
+    val onboarded = booleanPreferencesKey("onboarded")
     fun notif(k: SessionKind) = booleanPreferencesKey("notif_" + k.name)
     fun banner(k: SessionKind) = booleanPreferencesKey("banner_" + k.name)
     val resultsEnabled = booleanPreferencesKey("results_enabled")
@@ -77,6 +79,8 @@ class SettingsRepo(private val context: Context) {
     }
 
     suspend fun current(): AppSettings = flow.first()
+
+    suspend fun onboarded(): Boolean = context.dataStore.data.first()[Keys.onboarded] == true
 
     suspend fun edit(block: (MutablePreferences) -> Unit) {
         context.dataStore.edit { block(it) }

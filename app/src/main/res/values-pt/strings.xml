@@ -294,4 +294,17 @@
     <string name="results_notif_text">Resultado: %1$s</string>
     <string name="expand">Expandir</string>
     <string name="collapse">Recolher</string>
+    <string name="starts_in">Começa em %1$s</string>
+    <string name="replay_live_window">A OpenF1 libera os dados cerca de 30 minutos depois de cada sessão ao vivo. Se a sessão acabou de terminar, a classificação final está no Ao vivo.</string>
+    <string name="open_live">Abrir Ao vivo</string>
+    <string name="from_start">Do início</string>
+    <string name="advanced">Avançado</string>
+    <string name="advanced_sub">Transcrições do rádio e repositório de atualizações</string>
+    <string name="sectors">Setores</string>
+    <string name="sectors_note">Em cima, a última volta; embaixo, o melhor pessoal</string>
+    <string name="stints">Stints</string>
+    <string name="n_laps">%1$d voltas</string>
+    <string name="recent_laps">Últimas voltas</string>
+    <string name="no_laps_yet">Nenhuma volta completa ainda</string>
+    <string name="tower_legend">Dif: para o líder · Int: para o carro à frente\nÚlt/Melhor: última e melhor volta (verde = melhor pessoal, roxo = mais rápida da sessão)\nPneu, voltas com ele e paradas no box\nToque num piloto para ver setores, stints e voltas. Toque aqui para fechar.</string>
 </resources>

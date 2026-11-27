@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -531,7 +532,7 @@ private fun NextRaceCard(
             if (lastDone != null) {
                 Text(
                     stringResource(R.string.results), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.accentText, maxLines = 1, softWrap = false,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onSession(lastDone, true) }
+                    modifier = Modifier.minimumInteractiveComponentSize().clip(RoundedCornerShape(8.dp)).clickable { onSession(lastDone, true) }
                         .background(p.card2).padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
@@ -650,7 +651,7 @@ private fun NextRaceCard(
             Text((Static.BROADCAST[cc] ?: Static.FALLBACK_BROADCAST).joinToString(" · "), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Muted(stringResource(R.string.change_country_hint), 11.sp, Modifier.weight(1f))
-                Text(stringResource(R.string.view_circuit), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.accentText, modifier = Modifier.clickable(onClick = onCircuit).padding(8.dp))
+                Text(stringResource(R.string.view_circuit), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = p.accentText, modifier = Modifier.minimumInteractiveComponentSize().clickable(onClick = onCircuit).padding(8.dp))
             }
         }
     }

@@ -163,6 +163,7 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
     }
     var transcripts by remember { mutableStateOf(s.transcriptsUrl) }
     var whisper by remember { mutableStateOf(s.whisperKey) }
+    var advanced by remember { mutableStateOf(false) }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ScreenHeader(stringResource(R.string.settings), onBack = { nav.popBackStack() }) }
@@ -267,8 +268,27 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
             }
         }
 
-        item { Muted(stringResource(R.string.nav_radio).uppercase(), 12.sp) }
+        item { Muted(stringResource(R.string.offline_title).uppercase(), 12.sp) }
+        item { OfflineCard() }
+
+        item { Muted(stringResource(R.string.updates_title).uppercase(), 12.sp) }
+        item { CardBox { UpdateBox(s, showUpToDate = true) } }
+
+        // technical fields stay out of the way, folded at the end
         item {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { advanced = !advanced }.padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Muted(stringResource(R.string.advanced).uppercase(), 12.sp)
+                    Muted(stringResource(R.string.advanced_sub), 11.sp)
+                }
+                Text(if (advanced) "▴" else "▾", fontSize = 16.sp, color = p.muted)
+            }
+        }
+        if (advanced) item { Muted(stringResource(R.string.nav_radio).uppercase(), 12.sp) }
+        if (advanced) item {
             CardBox {
                 OutlinedTextField(
                     value = transcripts, onValueChange = { transcripts = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
@@ -289,16 +309,12 @@ fun SettingsScreen(nav: NavHostController, s: AppSettings) {
             }
         }
 
-        item { Muted(stringResource(R.string.offline_title), 12.sp) }
-        item { OfflineCard() }
-
-        item { Muted(stringResource(R.string.updates_title), 12.sp) }
-        item {
+        if (advanced) item { Muted(stringResource(R.string.updates_title).uppercase(), 12.sp) }
+        if (advanced) item {
             CardBox {
-                UpdateBox(s, showUpToDate = true)
                 var repo by remember { mutableStateOf(s.updateRepo) }
                 OutlinedTextField(
-                    value = repo, onValueChange = { repo = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    value = repo, onValueChange = { repo = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.update_repo)) },
                     placeholder = { androidx.compose.material3.Text(Updater.repo(s).ifEmpty { "usuario/RacePocket" }) }
                 )
