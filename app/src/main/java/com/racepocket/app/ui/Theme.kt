@@ -66,10 +66,16 @@ fun RaceTheme(mode: String, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalPalette provides p) {
         MaterialTheme(colorScheme = scheme) {
             // MaterialTheme hands every Text the bodyLarge style, whose fixed 24sp line height suits 16sp
-            // paragraphs but leaves the app's 9-14sp labels floating in empty space (a two-line tower row
-            // came out ~60dp). A line height that follows the font size keeps lists compact and paragraphs
-            // readable; texts that set their own lineHeight keep it.
-            ProvideTextStyle(LocalTextStyle.current.copy(lineHeight = 1.25.em), content)
+            // paragraphs but leaves the app's 9-14sp labels floating in empty space. A line height that
+            // follows the font size, between the two, keeps screens airy without that gap; the session
+            // tables go tighter with [CompactText]. Texts that set their own lineHeight keep it.
+            ProvideTextStyle(LocalTextStyle.current.copy(lineHeight = 1.5.em), content)
         }
     }
+}
+
+/** Tighter line height for dense tables (timing tower, results), where many rows should fit on screen. */
+@Composable
+fun CompactText(content: @Composable () -> Unit) {
+    ProvideTextStyle(LocalTextStyle.current.copy(lineHeight = 1.25.em), content)
 }

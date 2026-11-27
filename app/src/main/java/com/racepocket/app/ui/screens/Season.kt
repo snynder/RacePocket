@@ -673,16 +673,16 @@ fun RaceScreen(nav: NavHostController, year: Int, round: Int, settings: AppSetti
                         PillRow(tabs.map { it.second }, tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0)) { i -> tab = tabs[i].first; if (tab == 4) vm.loadPractice() }
                     }
                     when (tab) {
-                        0 -> item { if (rd.results.isEmpty()) EmptyBox(stringResource(R.string.results_soon)) else ResultsTable(rd.results, true) }
-                        1 -> item { if (rd.quali.isEmpty()) EmptyBox(stringResource(R.string.results_soon)) else QualiTable(rd.quali) }
-                        2 -> item { ResultsTable(rd.sprint, false) }
-                        3 -> item {
+                        0 -> compactItem { if (rd.results.isEmpty()) EmptyBox(stringResource(R.string.results_soon)) else ResultsTable(rd.results, true) }
+                        1 -> compactItem { if (rd.quali.isEmpty()) EmptyBox(stringResource(R.string.results_soon)) else QualiTable(rd.quali) }
+                        2 -> compactItem { ResultsTable(rd.sprint, false) }
+                        3 -> compactItem {
                             val grid = rd.results.filter { it.grid > 0 }.sortedBy { it.grid }
                             if (grid.isEmpty()) EmptyBox(stringResource(R.string.results_soon)) else CardBox(padding = 0.dp) {
                                 grid.forEach { g -> Divider(); RankRow("${g.grid}", teamColor(g.team.color), g.driver.flag, g.driver.name, g.team.name, "") }
                             }
                         }
-                        4 -> item {
+                        4 -> compactItem {
                             LoadBox(practice, onRetry = null) { list ->
                                 if (list.isEmpty()) EmptyBox(stringResource(R.string.no_session))
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -701,7 +701,7 @@ fun RaceScreen(nav: NavHostController, year: Int, round: Int, settings: AppSetti
                                 }
                             }
                         }
-                        5 -> item {
+                        5 -> compactItem {
                             val names = rd.results.associate { it.driver.id to it.driver }
                             CardBox(padding = 0.dp) {
                                 rd.pits.sortedBy { it.duration.toDoubleOrNull() ?: 999.0 }.forEach { pit ->
@@ -818,3 +818,7 @@ private fun QualiTable(rows: List<QualiRow>) {
         }
     }
 }
+
+/** A list item whose texts use the tight table spacing (results, qualifying, grid, practice, pits). */
+private fun androidx.compose.foundation.lazy.LazyListScope.compactItem(content: @Composable () -> Unit) =
+    item { com.racepocket.app.ui.CompactText(content) }

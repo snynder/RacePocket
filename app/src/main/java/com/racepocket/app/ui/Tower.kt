@@ -38,7 +38,10 @@ import com.racepocket.app.data.live.TowerRow
 
 /** Column titles; a tap shows what each abbreviation means. */
 @Composable
-fun TowerHeader() {
+fun TowerHeader() = CompactText { TowerHeaderBody() }
+
+@Composable
+private fun TowerHeaderBody() {
     val m = pal().muted
     var legend by remember { mutableStateOf(false) }
     // one line per label, never wrapped: narrow columns would otherwise break words into pieces
@@ -76,7 +79,10 @@ private val STOPS_W = 22.dp
 private val ROW_PAD = 8.dp
 
 @Composable
-fun TowerLine(r: TowerRow, onClick: (() -> Unit)? = null) {
+fun TowerLine(r: TowerRow, onClick: (() -> Unit)? = null) = CompactText { TowerLineBody(r, onClick) }
+
+@Composable
+private fun TowerLineBody(r: TowerRow, onClick: (() -> Unit)?) {
     val p = pal()
     Divider()
     Row(
