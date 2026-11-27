@@ -1,13 +1,16 @@
 package com.racepocket.app.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.em
 
 data class Palette(
     val bg: Color,
@@ -61,6 +64,12 @@ fun RaceTheme(mode: String, content: @Composable () -> Unit) {
         )
     }
     CompositionLocalProvider(LocalPalette provides p) {
-        MaterialTheme(colorScheme = scheme, content = content)
+        MaterialTheme(colorScheme = scheme) {
+            // MaterialTheme hands every Text the bodyLarge style, whose fixed 24sp line height suits 16sp
+            // paragraphs but leaves the app's 9-14sp labels floating in empty space (a two-line tower row
+            // came out ~60dp). A line height that follows the font size keeps lists compact and paragraphs
+            // readable; texts that set their own lineHeight keep it.
+            ProvideTextStyle(LocalTextStyle.current.copy(lineHeight = 1.25.em), content)
+        }
     }
 }

@@ -113,6 +113,7 @@
     <string name="downloading">Descargando %1$s</string>
     <string name="download_maps">Descargar todos los mapas</string>
     <string name="see_result">Ver resultado</string>
+    <string name="results">Resultados</string>
     <string name="map_from">Mapa de %1$d</string>
     <string name="record_quali">Récord de clasificación</string>
     <string name="record_race">Récord en carrera</string>

@@ -366,7 +366,13 @@ fun HomeScreen(nav: NavHostController, settings: AppSettings) {
 
                     data.next?.let { next ->
                         val curKind = current?.takeIf { it.first.season == next.season && it.first.round == next.round }?.second?.kind
-                        item { NextRaceCard(next, now, extra, track, settings, curKind, dot) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) } }
+                        item {
+                            NextRaceCard(
+                                next, now, extra, track, settings, curKind, dot,
+                                // a finished session opens its result in Replay; one still to come or running opens Live
+                                onSession = { s, done -> nav.navigate(if (done) Routes.replay(s.start) else Routes.LIVE) }
+                            ) { nav.navigate(Routes.circuit(next.circuitId, next.season, next.round)) }
+                        }
                     }
 
                     data.last?.let { last ->
@@ -508,16 +514,26 @@ private fun UpcomingCard(r: Race, isNext: Boolean, onClick: () -> Unit) {
 @Composable
 private fun NextRaceCard(
     next: Race, now: Instant, extra: Load<NextExtra>, track: TrackGeometry?, settings: AppSettings,
-    liveKind: SessionKind?, dot: LiveDotState?, onCircuit: () -> Unit
+    liveKind: SessionKind?, dot: LiveDotState?, onSession: (SessionTime, Boolean) -> Unit, onCircuit: () -> Unit
 ) {
     val p = pal()
+    fun isDone(s: SessionTime) = !(s.kind == liveKind && dot != null) && now.isAfter(s.end)
+    // the latest finished session of the weekend: the Results button opens it (hidden until FP1 ends)
+    val lastDone = next.sessions.lastOrNull { isDone(it) }
     CardBox(padding = 0.dp) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Flag(next.flag, 34.sp)
-            Column {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.align(Alignment.CenterVertically)) { Flag(next.flag, 34.sp) }
+            Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
                 Text(stringResource(R.string.next_race_round, next.round).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = p.accentText)
                 Text(Fmt.raceName(next.name), fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
                 Muted("${next.circuitName} · ${next.locality}", 12.sp)
+            }
+            if (lastDone != null) {
+                Text(
+                    stringResource(R.string.results), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.accentText, maxLines = 1, softWrap = false,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onSession(lastDone, true) }
+                        .background(p.card2).padding(horizontal = 10.dp, vertical = 6.dp)
+                )
             }
         }
         next.raceStart?.let { start ->
@@ -548,9 +564,12 @@ private fun NextRaceCard(
         Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             next.sessions.forEach { s ->
                 val isLive = s.kind == liveKind && dot != null
-                val done = !isLive && now.isAfter(s.end)
+                val done = isDone(s)
                 val strike = if (done) TextDecoration.LineThrough else null
-                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).clickable { onSession(s, done) }.padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (isLive) {
                         BlinkingDot(dot!!.color)
                         Spacer(Modifier.width(6.dp))

@@ -327,8 +327,36 @@ class SessionSelector(private val scope: CoroutineScope, private val kinds: Set<
     val session = MutableStateFlow<OpenF1.Session?>(null)
     var onSession: (OpenF1.Session) -> Unit = {}
     private var job: Job? = null
+    private var meetingJob: Job? = null
 
     fun start() { if (meetings.value !is Load.Ok) selectYear(year.value) }
+
+    /**
+     * Opens the session that started closest to [at] (the calendar times come from another source, so the
+     * match is by time, within 3 hours). If none matches, falls back to the latest meeting, as [start] does.
+     */
+    fun openAt(at: Instant) {
+        val y = at.atZone(java.time.ZoneOffset.UTC).year
+        year.value = y
+        job?.cancel()
+        job = scope.launch {
+            meetings.value = Load.Loading
+            try {
+                val now = Instant.now()
+                val ms = OpenF1.meetings(y).filter { (it.start ?: now).isBefore(now) }
+                meetings.value = Load.Ok(ms)
+                fun dist(s: OpenF1.Session) = s.start?.let { kotlin.math.abs(java.time.Duration.between(it, at).toMinutes()) } ?: Long.MAX_VALUE
+                val target = runCatching { OpenF1.sessionsOfYear(y) }.getOrDefault(emptyList())
+                    .minByOrNull { dist(it) }?.takeIf { dist(it) <= 180 }
+                val m = target?.let { t -> ms.firstOrNull { it.key == t.meetingKey } } ?: ms.lastOrNull()
+                m?.let { selectMeeting(it, target?.key) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                meetings.value = Load.Err(e)
+            }
+        }
+    }
 
     fun selectYear(y: Int) {
         year.value = y
@@ -348,16 +376,17 @@ class SessionSelector(private val scope: CoroutineScope, private val kinds: Set<
         }
     }
 
-    fun selectMeeting(m: OpenF1.Meeting) {
+    fun selectMeeting(m: OpenF1.Meeting, sessionKey: Int? = null) {
         meeting.value = m
         sessions.value = emptyList()
         session.value = null
-        scope.launch {
+        meetingJob?.cancel()
+        meetingJob = scope.launch {
             val now = Instant.now()
             val ss = runCatching { OpenF1.sessions(m.key) }.getOrDefault(emptyList())
                 .filter { (it.end ?: now).isBefore(now) && (kinds == null || it.name in kinds) }
             sessions.value = ss
-            (ss.lastOrNull { it.name == prefer } ?: ss.lastOrNull())?.let { selectSession(it) }
+            (ss.firstOrNull { it.key == sessionKey } ?: ss.lastOrNull { it.name == prefer } ?: ss.lastOrNull())?.let { selectSession(it) }
         }
     }
 
@@ -496,9 +525,17 @@ class ReplayVM : BaseVM() {
         .flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
     private var loop: Job? = null
 
+    private var started = false
+
     init {
         sel.onSession = { s -> open(s) }
-        sel.start()
+    }
+
+    /** Called once by the screen: on the session that started at [at], or on the latest one. */
+    fun begin(at: Instant?) {
+        if (started) return
+        started = true
+        if (at != null) sel.openAt(at) else sel.start()
     }
 
     private fun open(s: OpenF1.Session) {
@@ -529,8 +566,9 @@ class ReplayVM : BaseVM() {
 }
 
 @Composable
-fun ReplayScreen(nav: NavHostController) {
+fun ReplayScreen(nav: NavHostController, at: Instant? = null) {
     val vm: ReplayVM = viewModel()
+    LaunchedEffect(Unit) { vm.begin(at) }
     val data by vm.data.collectAsState()
     val frame by vm.frame.collectAsState()
     val time by vm.time.collectAsState()

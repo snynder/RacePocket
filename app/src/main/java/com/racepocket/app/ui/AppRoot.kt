@@ -65,6 +65,8 @@ object Routes {
     const val COMPARE = "compare"
     const val RECORDS = "records"
     fun circuit(id: String, year: Int? = null, round: Int? = null) = "circuit/$id?year=${year ?: -1}&round=${round ?: -1}"
+    /** Replay opened on the session that started at [at] (matched by start time); without it, the latest one. */
+    fun replay(at: java.time.Instant) = "$REPLAY?at=${at.epochSecond}"
     fun race(year: Int, round: Int, tab: Int? = null) = "race/$year/$round" + (tab?.let { "?tab=$it" } ?: "")
 }
 
@@ -135,7 +137,12 @@ fun AppRoot(settings: AppSettings) {
                 composable(Routes.CIRCUITS) { CircuitsScreen(nav) }
                 composable(Routes.MORE) { MoreScreen(nav) }
                 composable(Routes.LIVE) { LiveScreen(nav, settings) }
-                composable(Routes.REPLAY) { ReplayScreen(nav) }
+                composable(
+                    "${Routes.REPLAY}?at={at}",
+                    arguments = listOf(navArgument("at") { type = NavType.LongType; defaultValue = -1L })
+                ) { e ->
+                    ReplayScreen(nav, e.arguments?.getLong("at")?.takeIf { it > 0 }?.let { java.time.Instant.ofEpochSecond(it) })
+                }
                 composable(Routes.SETTINGS) { SettingsScreen(nav, settings) }
                 composable(Routes.RADIO) { RadioScreen(nav, settings) }
                 composable(Routes.TELEMETRY) { TelemetryScreen(nav) }

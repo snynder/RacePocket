@@ -114,6 +114,7 @@
     <string name="downloading">Downloading %1$s</string>
     <string name="download_maps">Download all maps</string>
     <string name="see_result">See result</string>
+    <string name="results">Results</string>
     <string name="map_from">Map from %1$d</string>
     <string name="record_quali">Qualifying record</string>
     <string name="record_race">Race lap record</string>

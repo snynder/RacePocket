@@ -52,12 +52,14 @@ private val TYRE_GAP = 6.dp
 private val TYRE_W = 30.dp
 private val LAPS_W = 32.dp // fits "Voltas" in the header
 private val STOPS_W = 22.dp
+/** Top and bottom padding of a tower row: with the natural line height a row ends up ~44dp, still easy to tap and read. */
+private val ROW_PAD = 8.dp
 
 @Composable
 fun TowerLine(r: TowerRow) {
     val p = pal()
     Divider()
-    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = ROW_PAD), verticalAlignment = Alignment.CenterVertically) {
         Text("${r.position}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (r.out) p.muted else p.text, modifier = Modifier.width(POS_W), textAlign = TextAlign.Center)
         Box(Modifier.width(BAR_W), contentAlignment = Alignment.Center) { TeamBar(hexColor(r.teamColor), 24.dp) }
         // a surname that does not fit is never cut: the row keeps only the three-letter code,
